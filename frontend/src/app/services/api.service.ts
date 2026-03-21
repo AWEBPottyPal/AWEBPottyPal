@@ -102,4 +102,23 @@ export class ApiService {
   getRestroomsByUser(userId: string): Observable<any> {
     return this.http.get(`${BASE_URL}/restrooms/user/${userId}`, { headers: this.authHeaders() });
   }
+
+  // ─── Admin Routes ─────────────────────────────────────────────────────────────
+  // Get all flagged restrooms (admin only)
+  getAdminFlaggedRestrooms(sortBy: string = 'flags', order: string = 'desc'): Observable<any> {
+    console.log('[ApiService] getAdminFlaggedRestrooms() called');
+    return this.http.get(`${BASE_URL}/admin/flagged-restrooms?sortBy=${sortBy}&order=${order}`, {
+      headers: this.authHeaders(),
+    });
+  }
+
+  // Admin unflag a restroom (clear all flags)
+  adminUnflagRestroom(id: string): Observable<any> {
+    return this.http.patch(`${BASE_URL}/admin/restrooms/${id}/unflag`, {}, { headers: this.authHeaders() });
+  }
+
+  // Admin delete a restroom (bypasses ownership check)
+  adminDeleteRestroom(id: string): Observable<any> {
+    return this.http.delete(`${BASE_URL}/admin/restrooms/${id}`, { headers: this.authHeaders() });
+  }
 }

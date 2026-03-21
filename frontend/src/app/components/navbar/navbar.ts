@@ -11,6 +11,9 @@ import { Router } from '@angular/router';
       <strong>🚻 PottyPal</strong> |
       <a routerLink="/">Home</a> |
       <a routerLink="/add-restroom">Add Restroom</a> |
+      @if (auth.isAdmin()) {
+        <a routerLink="/flagged-restrooms">🚩 Community Flagged</a> |
+      }
       <a routerLink="/maps">Maps</a> |
       @if (auth.isLoggedIn()) {
         <a routerLink="/profile">Profile</a> |

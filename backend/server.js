@@ -5,6 +5,7 @@ import connectDB from "./config/db.js";
 import restroomRoutes from "./routes/restroomRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use("/api/restrooms", restroomRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check
 app.get("/", (req, res) => res.json({ message: "PottyPal API is running 🚻" }));

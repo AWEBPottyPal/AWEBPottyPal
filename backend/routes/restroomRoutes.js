@@ -40,7 +40,9 @@ router.post("/", protect, async (req, res) => {
 router.get("/", async (req, res) => {
   console.log("[GET /api/restrooms] Fetching all restrooms");
   try {
-    const restrooms = await Restroom.find().populate("createdBy", "username email");
+    const restrooms = await Restroom.find()
+      .populate("createdBy", "username email")
+      .populate("flags", "username email");
     console.log(`[GET /api/restrooms] Found ${restrooms.length} restrooms`);
     res.json(restrooms);
   } catch (error) {
@@ -73,7 +75,9 @@ router.get("/user/:userId", protect, async (req, res) => {
     }
 
     console.log('   [OK] Access granted, querying DB...');
-    const restrooms = await Restroom.find({ createdBy: targetId }).populate('createdBy', 'username email');
+    const restrooms = await Restroom.find({ createdBy: targetId })
+      .populate('createdBy', 'username email')
+      .populate('flags', 'username email');
     console.log('   [OK] Found', restrooms.length, 'restrooms');
     console.log('[GET /api/restrooms/user/:userId] ===== REQUEST END =====\n');
     res.json(restrooms);
@@ -92,10 +96,9 @@ router.get("/user/:userId", protect, async (req, res) => {
 router.get("/:id", async (req, res) => {
   console.log("[GET /api/restrooms/:id] Fetching restroom:", req.params.id);
   try {
-    const restroom = await Restroom.findById(req.params.id).populate(
-      "createdBy",
-      "username email"
-    );
+    const restroom = await Restroom.findById(req.params.id)
+      .populate("createdBy", "username email")
+      .populate("flags", "username email");
     if (!restroom) return res.status(404).json({ message: "Restroom not found" });
     res.json(restroom);
   } catch (error) {
@@ -194,43 +197,49 @@ router.patch("/:id/flag", protect, async (req, res) => {
       return res.status(404).json({ message: "Restroom not found" });
     }
 
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      console.log('   [NOT FOUND] User not found');
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Check if already flagged
-    const alreadyFlagged = user.flaggedRestrooms.some(
-      (id) => id.toString() === restroom._id.toString()
+    // Check if this user already flagged this restroom
+    const userAlreadyFlagged = restroom.flags.some(
+      (userId) => userId.toString() === req.user._id.toString()
     );
 
-    console.log('   Current flaggedRestrooms count:', user.flaggedRestrooms.length);
-    console.log('   Already flagged by this user:', alreadyFlagged);
+    console.log('   Current flags count:', restroom.flags.length);
+    console.log('   User already flagged:', userAlreadyFlagged);
 
-    if (alreadyFlagged) {
-      // Remove flag (UNFLAG)
-      console.log('   [UNFLAG] Removing restroom from user flaggedRestrooms');
+    if (userAlreadyFlagged) {
+      // Remove flag (UNFLAG) - remove user from flags array
+      console.log('   [UNFLAG] Removing user from flags array');
+      await Restroom.findByIdAndUpdate(req.params.id, {
+        $pull: { flags: req.user._id },
+      });
+      const updatedRestroom = await Restroom.findById(req.params.id);
+      console.log('   [UNFLAG] Updated flags count:', updatedRestroom.flags.length);
+      
+      // Also remove from user's flaggedRestrooms
       await User.findByIdAndUpdate(req.user._id, {
         $pull: { flaggedRestrooms: restroom._id },
       });
-      const updatedUser = await User.findById(req.user._id);
-      console.log('   [UNFLAG] Updated user flaggedRestrooms count:', updatedUser.flaggedRestrooms.length);
+
       const message = "Restroom unflagged";
       console.log('[PATCH /api/restrooms/:id/flag] ===== SUCCESS: UNFLAG =====\n');
-      res.json({ message, flagged: false });
+      res.json({ message, flagged: false, flagCount: updatedRestroom.flags.length });
     } else {
-      // Add flag (FLAG)
-      console.log('   [FLAG] Adding restroom to user flaggedRestrooms');
-      await Restroom.findByIdAndUpdate(req.params.id, { isFlagged: true }, { new: true });
+      // Add flag (FLAG) - add user to flags array
+      console.log('   [FLAG] Adding user to flags array');
+      await Restroom.findByIdAndUpdate(req.params.id, {
+        $addToSet: { flags: req.user._id },
+        isFlagged: true,
+      });
+      const updatedRestroom = await Restroom.findById(req.params.id);
+      console.log('   [FLAG] Updated flags count:', updatedRestroom.flags.length);
+
+      // Also add to user's flaggedRestrooms
       await User.findByIdAndUpdate(req.user._id, {
         $addToSet: { flaggedRestrooms: restroom._id },
       });
-      const updatedUser = await User.findById(req.user._id);
-      console.log('   [FLAG] Updated user flaggedRestrooms count:', updatedUser.flaggedRestrooms.length);
+
       const message = "Restroom flagged";
       console.log('[PATCH /api/restrooms/:id/flag] ===== SUCCESS: FLAG =====\n');
-      res.json({ message, flagged: true });
+      res.json({ message, flagged: true, flagCount: updatedRestroom.flags.length });
     }
   } catch (error) {
     console.error('[PATCH /api/restrooms/:id/flag] ===== ERROR =====');

@@ -9,6 +9,8 @@ import { FlaggedComponent } from './components/flagged/flagged';
 import { ReviewedComponent } from './components/reviewed/reviewed';
 import { AddedComponent } from './components/added/added';
 import { MapsComponent } from './components/maps/maps';
+import { AdminFlaggedComponent } from './components/admin-flagged/admin-flagged';
+import { FlaggedRestroomsComponent } from './components/flagged-restrooms/flagged-restrooms';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -18,8 +20,10 @@ export const routes: Routes = [
   { path: 'profile', component: ProfileComponent },
   { path: 'saved', component: SavedComponent },
   { path: 'flagged', component: FlaggedComponent },
+  { path: 'flagged-restrooms', component: FlaggedRestroomsComponent },
   { path: 'reviewed', component: ReviewedComponent },
   { path: 'added', component: AddedComponent },
   { path: 'maps', component: MapsComponent },
+  { path: 'admin/flagged-restrooms', component: AdminFlaggedComponent },
   { path: '**', redirectTo: '' }
 ];

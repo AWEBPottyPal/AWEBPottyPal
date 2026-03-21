@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
@@ -9,14 +10,14 @@ import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-restroom-detail',
-  imports: [FormsModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <h2>Restroom Detail</h2>
     @if (restroom) {
       <p><strong>Name:</strong> {{ restroom.name }}</p>
       <p><strong>Description:</strong> {{ restroom.description }}</p>
       <p><strong>Location:</strong>
-        Lat {{ restroom.location?.latitude }}, Lng {{ restroom.location?.longitude }}
+        Lat: {{ restroom.location?.latitude | number: '1.4-4' }}, Lng: {{ restroom.location?.longitude | number: '1.4-4' }}
       </p>
       <p><strong>Amenities:</strong> {{ restroom.amenities?.join(', ') || 'None' }}</p>
       <p><strong>Flagged:</strong> {{ restroom.isFlagged }}</p>
@@ -36,6 +37,11 @@ import { takeUntil } from 'rxjs/operators';
             <button (click)="flag()">🚩 Flag</button>
           }
         </div>
+        @if (canDeleteRestroom()) {
+          <div style="margin:8px 0;">
+            <button (click)="deleteRestroom()" style="color: red; background-color: #fee; padding: 8px 12px;">🗑️ Delete Restroom</button>
+          </div>
+        }
         <p>{{ actionMsg }}</p>
 
         <hr>
@@ -70,6 +76,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy {
   auth = inject(AuthService);
   private cd = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private destroy$ = new Subject<void>();
 
   restroom: Restroom | null = null;
@@ -80,6 +87,51 @@ export class RestroomDetailComponent implements OnInit, OnDestroy {
   comment = '';
   isSaved = false;
   isFlagged = false;
+
+  canDeleteRestroom(): boolean {
+    if (!this.auth.isLoggedIn() || !this.restroom) {
+      console.log('[Detail] canDeleteRestroom: not logged in or no restroom');
+      return false;
+    }
+    
+    const userId = this.auth.getUserId();
+    console.log('[Detail] canDeleteRestroom - userId:', userId);
+    console.log('[Detail] canDeleteRestroom - createdBy:', this.restroom.createdBy);
+    
+    // createdBy can be a string (ID) or object with _id property
+    let createdById: string | undefined;
+    if (typeof this.restroom.createdBy === 'string') {
+      createdById = this.restroom.createdBy;
+    } else if (this.restroom.createdBy && typeof this.restroom.createdBy === 'object') {
+      createdById = (this.restroom.createdBy as any)._id;
+    }
+    
+    console.log('[Detail] canDeleteRestroom - createdById:', createdById);
+    
+    const isOwner = createdById === userId;
+    const isAdmin = this.auth.isAdmin();
+    const canDelete = isOwner || isAdmin;
+    
+    console.log('[Detail] canDeleteRestroom - isOwner:', isOwner, 'isAdmin:', isAdmin, 'result:', canDelete);
+    return canDelete;
+  }
+
+  get canDelete(): boolean {
+    if (!this.auth.isLoggedIn() || !this.restroom) return false;
+    const userId = this.auth.getUserId();
+    
+    // createdBy can be a string (ID) or object with _id property
+    let createdById: string | undefined;
+    if (typeof this.restroom.createdBy === 'string') {
+      createdById = this.restroom.createdBy;
+    } else if (this.restroom.createdBy && typeof this.restroom.createdBy === 'object') {
+      createdById = (this.restroom.createdBy as any)._id;
+    }
+    
+    const isOwner = createdById === userId;
+    const isAdmin = this.auth.isAdmin();
+    return isOwner || isAdmin;
+  }
 
   ngOnInit() {
     // Subscribe to route parameter changes and fetch data whenever the route ID changes
@@ -100,11 +152,19 @@ export class RestroomDetailComponent implements OnInit, OnDestroy {
 
   private fetchData(id: string) {
     this.api.getRestroom(id).subscribe({
-      next: (r) => { console.log('[Detail] Restroom:', r); this.restroom = r; },
+      next: (r) => { 
+        console.log('[Detail] Restroom:', r); 
+        this.restroom = r;
+        this.cd.markForCheck();
+      },
       error: (e) => console.error('[Detail] Error:', e)
     });
     this.api.getReviews(id).subscribe({
-      next: (r) => { console.log('[Detail] Reviews:', r); this.reviews = r; },
+      next: (r) => { 
+        console.log('[Detail] Reviews:', r); 
+        this.reviews = r;
+        this.cd.markForCheck();
+      },
       error: (e) => console.error('[Detail] Reviews error:', e)
     });
 
@@ -226,6 +286,35 @@ export class RestroomDetailComponent implements OnInit, OnDestroy {
       error: (e) => {
         console.error('[Detail] Delete review error:', e);
         this.reviewMsg = `❌ ${e.error?.message || e.message}`;
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  deleteRestroom() {
+    if (!this.restroom) return;
+    
+    const confirmed = confirm(`Are you sure you want to DELETE "${this.restroom.name}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    console.log('[Detail] Deleting restroom:', this.restroom._id);
+    
+    // Determine which delete method to use
+    const isAdmin = this.auth.isAdmin();
+    const deleteCall = isAdmin 
+      ? this.api.adminDeleteRestroom(this.restroom._id)
+      : this.api.deleteRestroom(this.restroom._id);
+
+    deleteCall.subscribe({
+      next: (response) => {
+        console.log('[Detail] Restroom deleted:', response);
+        this.actionMsg = '✅ Restroom deleted successfully!';
+        setTimeout(() => this.router.navigate(['/flagged-restrooms']), 2000);
+        this.cd.markForCheck();
+      },
+      error: (e) => {
+        console.error('[Detail] Delete restroom error:', e);
+        this.actionMsg = `❌ ${e.error?.message || 'Failed to delete restroom'}`;
         this.cd.markForCheck();
       }
     });

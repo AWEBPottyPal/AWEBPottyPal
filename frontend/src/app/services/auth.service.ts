@@ -54,4 +54,11 @@ export class AuthService {
     console.log('[AuthService] getUserId() called, returning:', userId);
     return userId;
   }
+
+  isAdmin(): boolean {
+    const role = this.currentUser()?.role;
+    const isAdminUser = role === 'admin';
+    console.log('[AuthService] isAdmin() called, user role:', role, 'result:', isAdminUser);
+    return isAdminUser;
+  }
 }

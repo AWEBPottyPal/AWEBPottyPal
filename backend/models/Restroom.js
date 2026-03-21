@@ -31,6 +31,12 @@ const restroomSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  flags: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
 });
 
 export default mongoose.model("Restroom", restroomSchema);
