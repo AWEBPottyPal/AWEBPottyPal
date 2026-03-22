@@ -13,10 +13,20 @@ const restroomSchema = new mongoose.Schema({
   location: {
     latitude: { type: Number },
     longitude: { type: Number },
+    address: { type: String, trim: true },
   },
   amenities: {
     type: [String],
     enum: ["Bidet", "Soap", "PWD Friendly", "Clean", "Lock", "Tissue"],
+    default: [],
+  },
+  operatingHours: {
+    is24Hours: { type: Boolean, default: false },
+    openTime: { type: String, trim: true },
+    closeTime: { type: String, trim: true }
+  },
+  images: {
+    type: [String],
     default: [],
   },
   createdBy: {

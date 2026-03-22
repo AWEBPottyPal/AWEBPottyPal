@@ -11,7 +11,7 @@ const router = express.Router();
 // @access  Private
 router.post("/", protect, async (req, res) => {
   console.log("[POST /api/restrooms] Adding new restroom by user:", req.user._id);
-  const { name, description, location, amenities } = req.body;
+  const { name, description, location, amenities, images, operatingHours } = req.body;
 
   try {
     const restroom = await Restroom.create({
@@ -19,6 +19,8 @@ router.post("/", protect, async (req, res) => {
       description,
       location,
       amenities,
+      images,
+      operatingHours,
       createdBy: req.user._id,
     });
 
@@ -38,13 +40,35 @@ router.post("/", protect, async (req, res) => {
 // @desc    Get all restrooms
 // @access  Public
 router.get("/", async (req, res) => {
-  console.log("[GET /api/restrooms] Fetching all restrooms");
+  console.log("[GET /api/restrooms] Fetching all restrooms with average ratings");
   try {
-    const restrooms = await Restroom.find()
-      .populate("createdBy", "username email")
-      .populate("flags", "username email");
-    console.log(`[GET /api/restrooms] Found ${restrooms.length} restrooms`);
-    res.json(restrooms);
+    const restrooms = await Restroom.aggregate([
+      {
+        $lookup: {
+          from: "reviews",
+          localField: "_id",
+          foreignField: "restroom",
+          as: "reviewsList"
+        }
+      },
+      {
+        $addFields: {
+          averageRating: { $avg: "$reviewsList.rating" }
+        }
+      },
+      {
+        $unset: "reviewsList"
+      }
+    ]);
+    
+    // Mongoose Model.populate supports arrays of plain objects from aggregate
+    const populatedRestrooms = await Restroom.populate(restrooms, [
+      { path: "createdBy", select: "username email" },
+      { path: "flags", select: "username email" }
+    ]);
+    
+    console.log(`[GET /api/restrooms] Found ${populatedRestrooms.length} restrooms`);
+    res.json(populatedRestrooms);
   } catch (error) {
     console.error("[GET /api/restrooms] Error:", error.message);
     res.status(500).json({ message: "Failed to fetch restrooms", error: error.message });
@@ -212,6 +236,10 @@ router.patch("/:id/flag", protect, async (req, res) => {
         $pull: { flags: req.user._id },
       });
       const updatedRestroom = await Restroom.findById(req.params.id);
+      const shouldBeFlagged = updatedRestroom.flags.length >= 2;
+      updatedRestroom.isFlagged = shouldBeFlagged;
+      await updatedRestroom.save();
+
       console.log('   [UNFLAG] Updated flags count:', updatedRestroom.flags.length);
       
       // Also remove from user's flaggedRestrooms
@@ -221,15 +249,18 @@ router.patch("/:id/flag", protect, async (req, res) => {
 
       const message = "Restroom unflagged";
       console.log('[PATCH /api/restrooms/:id/flag] ===== SUCCESS: UNFLAG =====\n');
-      res.json({ message, flagged: false, flagCount: updatedRestroom.flags.length });
+      res.json({ message, flagged: false, flagCount: updatedRestroom.flags.length, isFlagged: shouldBeFlagged });
     } else {
       // Add flag (FLAG) - add user to flags array
       console.log('   [FLAG] Adding user to flags array');
       await Restroom.findByIdAndUpdate(req.params.id, {
         $addToSet: { flags: req.user._id },
-        isFlagged: true,
       });
       const updatedRestroom = await Restroom.findById(req.params.id);
+      const shouldBeFlagged = updatedRestroom.flags.length >= 2;
+      updatedRestroom.isFlagged = shouldBeFlagged;
+      await updatedRestroom.save();
+
       console.log('   [FLAG] Updated flags count:', updatedRestroom.flags.length);
 
       // Also add to user's flaggedRestrooms
@@ -239,7 +270,7 @@ router.patch("/:id/flag", protect, async (req, res) => {
 
       const message = "Restroom flagged";
       console.log('[PATCH /api/restrooms/:id/flag] ===== SUCCESS: FLAG =====\n');
-      res.json({ message, flagged: true, flagCount: updatedRestroom.flags.length });
+      res.json({ message, flagged: true, flagCount: updatedRestroom.flags.length, isFlagged: shouldBeFlagged });
     }
   } catch (error) {
     console.error('[PATCH /api/restrooms/:id/flag] ===== ERROR =====');

@@ -1,7 +1,7 @@
 import { Component, inject, PLATFORM_ID, ChangeDetectorRef, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { LocationService } from '../../services/location.service';
@@ -12,7 +12,7 @@ import type * as L from 'leaflet';
 const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
 
 @Component({
-  selector: 'app-add-restroom',
+  selector: 'app-edit-restroom',
   standalone: true,
   imports: [FormsModule, CommonModule],
   styles: [`
@@ -33,16 +33,16 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
     }
   `],
   template: `
-    <h2>Add Restroom</h2>
+    <h2>Edit Restroom</h2>
     @if (!auth.isLoggedIn()) {
-      <p>⚠️ You must be logged in to add a restroom.</p>
+      <p>⚠️ You must be logged in to edit a restroom.</p>
     } @else {
       <label>Name: <input [(ngModel)]="name" placeholder="Restroom name" /></label><br>
       <label>Description: <input [(ngModel)]="description" placeholder="Description" /></label><br>
       <label>Address (Optional): <input [(ngModel)]="address" placeholder="e.g. 1st Floor, Building A" style="width: 100%; box-sizing: border-box; padding: 8px; margin-top: 4px;" /></label><br>
       
       <div style="margin-top: 15px; margin-bottom: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9;">
-        <label style="display: block; font-weight: bold; margin-bottom: 5px;">Upload Restroom Photos (Max 3):</label>
+        <label style="display: block; font-weight: bold; margin-bottom: 5px;">Update Restroom Photos (Max 3):</label>
         
         <input type="file" accept="image/*" multiple (change)="onFilesSelected($event)" [disabled]="images.length >= 3" />
         <p style="font-size: 0.85em; color: #666; margin: 5px 0 0 0;">{{ images.length }} / 3 photos uploaded</p>
@@ -60,7 +60,7 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
       </div>
 
       <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; margin-top: 20px;">
-        <p style="margin: 0;">📍 Click on the map to pin the restroom location:</p>
+        <p style="margin: 0;">📍 Click on the map to re-pin the restroom location:</p>
         <button (click)="recenterMap()" style="padding: 4px 8px; font-size: 0.9em; background: #e0e0e0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">
           📍 Recenter Map
         </button>
@@ -69,7 +69,7 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
         </button>
       </div>
 
-      <div id="add-map" style="height: 300px; width: 100%; border: 1px solid #ccc; margin-bottom: 1rem; border-radius: 8px; transition: all 0.3s ease;"></div>
+      <div id="edit-map" style="height: 300px; width: 100%; border: 1px solid #ccc; margin-bottom: 1rem; border-radius: 8px; transition: all 0.3s ease;"></div>
       
       @if (isFullscreen) {
         <div style="position: fixed; top: 20px; right: 20px; z-index: 10000;">
@@ -106,20 +106,22 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
         }
       </fieldset>
 
-      <button (click)="submit()" style="margin-top: 15px;">Add Restroom</button>
+      <button (click)="submit()" style="margin-top: 15px; background: #4285f4; color: white;">Save Changes</button>
       <p>{{ statusMsg }}</p>
     }
   `
 })
-export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
+export class EditRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
   private api = inject(ApiService);
   auth = inject(AuthService);
   private locationService = inject(LocationService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
   private platformId = inject(PLATFORM_ID);
   private destroy$ = new Subject<void>();
 
+  restroomId!: string;
   name = ''; description = ''; address = '';
   latitude: number | null = null; longitude: number | null = null;
   amenityOptions = AMENITIES;
@@ -145,9 +147,8 @@ export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
   async ngAfterViewInit() {
     if (isPlatformBrowser(this.platformId)) {
       this.leaflet = await import('leaflet');
-      // Adding a tiny delay allows the @if auth div to settle if it was instantly true
       setTimeout(() => {
-        if (document.getElementById('add-map') && !this.map) {
+        if (document.getElementById('edit-map') && !this.map) {
           this.initMap();
         }
       }, 100);
@@ -155,12 +156,17 @@ export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnInit() {
+    this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
+      const id = params.get('id');
+      if (id) {
+        this.restroomId = id;
+        this.fetchRestroom(id);
+      }
+    });
+
     this.locationService.locationEnabled$.pipe(takeUntil(this.destroy$)).subscribe(enabled => {
       this.locationEnabled = enabled;
       this.updateUserMarker();
-      if (enabled && this.userPos && !this.marker) {
-        this.recenterMap();
-      }
       this.cdr.markForCheck();
     });
 
@@ -174,6 +180,36 @@ export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  fetchRestroom(id: string) {
+    this.api.getRestroom(id).subscribe({
+      next: (r) => {
+        this.name = r.name;
+        this.description = r.description || '';
+        this.address = r.location?.address || '';
+        this.latitude = r.location?.latitude || null;
+        this.longitude = r.location?.longitude || null;
+        this.selectedAmenities = r.amenities || [];
+        this.images = r.images || [];
+        this.is24Hours = r.operatingHours?.is24Hours || false;
+        this.openTime = r.operatingHours?.openTime || '';
+        this.closeTime = r.operatingHours?.closeTime || '';
+        
+        if (this.map && this.latitude && this.longitude) {
+          const latlng = this.leaflet.latLng(this.latitude, this.longitude);
+          if (this.marker) {
+            this.marker.setLatLng(latlng);
+          } else {
+            const customPinIcon = this.getCustomPinIcon();
+            this.marker = this.leaflet.marker(latlng, { icon: customPinIcon }).addTo(this.map);
+          }
+          this.recenterMap();
+        }
+        this.cdr.markForCheck();
+      },
+      error: (e) => this.statusMsg = '❌ Failed to load restroom details.'
+    });
   }
 
   onFilesSelected(event: any) {
@@ -202,7 +238,7 @@ export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
 
   toggleFullscreen() {
     this.isFullscreen = !this.isFullscreen;
-    const mapElement = document.getElementById('add-map');
+    const mapElement = document.getElementById('edit-map');
     if (mapElement) {
       if (this.isFullscreen) {
         mapElement.classList.add('fullscreen-map');
@@ -216,36 +252,46 @@ export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   recenterMap() {
-    if (!this.map) return;
-    if (this.locationEnabled && this.userPos) {
+    if (!this.map || !this.leaflet) return;
+    if (this.latitude && this.longitude) {
+      this.map.setView([this.latitude, this.longitude], 16, { animate: true });
+    } else if (this.locationEnabled && this.userPos) {
       this.map.setView([this.userPos.lat, this.userPos.lng], 16, { animate: true });
     } else {
       this.map.setView(this.locationService.HAU_COORDS, 16, { animate: true });
     }
   }
 
-  private initMap(): void {
-    const L = this.leaflet;
-    this.map = L.map('add-map').setView(this.locationService.HAU_COORDS, 16);
-
-    // Standard OpenStreetMap with high detail for buildings/texts, but filtered for modern aesthetics
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-      className: 'osm-custom-tiles'
-    }).addTo(this.map);
-
-    // Custom dark blue marker for pinned restroom
-    const customPinIcon = L.divIcon({
+  private getCustomPinIcon() {
+    return this.leaflet.divIcon({
       className: 'custom-restroom-pin',
       html: `<div style="background-color: #003366; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 12px; font-weight: bold;">R</span></div>`,
       iconSize: [28, 28],
       iconAnchor: [14, 14],
       popupAnchor: [0, -14]
     });
+  }
+
+  private initMap(): void {
+    const L = this.leaflet;
+    this.map = L.map('edit-map').setView(this.locationService.HAU_COORDS, 16);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+      className: 'osm-custom-tiles'
+    }).addTo(this.map);
+
+    const customPinIcon = this.getCustomPinIcon();
     L.Marker.prototype.options.icon = customPinIcon;
 
     this.updateUserMarker();
+
+    if (this.latitude && this.longitude) {
+      const latlng = L.latLng(this.latitude, this.longitude);
+      this.marker = L.marker(latlng, { icon: customPinIcon }).addTo(this.map);
+      this.recenterMap();
+    }
 
     this.map.on('click', (e: L.LeafletMouseEvent) => {
       this.latitude = e.latlng.lat;
@@ -275,14 +321,8 @@ export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
 
     if (this.userMarker) {
       this.userMarker.setLatLng(center).bindPopup(popupText);
-      if (!this.marker && this.locationEnabled && this.userPos) {
-        this.recenterMap();
-      }
     } else {
       this.userMarker = L.marker(center, { icon: userIcon }).addTo(this.map).bindPopup(popupText);
-      if (!this.marker && this.locationEnabled && this.userPos) {
-        this.recenterMap();
-      }
     }
   }
 
@@ -314,13 +354,13 @@ export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
       payload.images = this.images;
     }
 
-    this.api.addRestroom(payload).subscribe({
+    this.api.updateRestroom(this.restroomId, payload).subscribe({
       next: (r) => {
-        this.statusMsg = `✅ Restroom "${r.name}" added!`;
-        setTimeout(() => this.router.navigate(['/']), 1000);
+        this.statusMsg = `✅ Restroom "${r.name}" updated!`;
+        setTimeout(() => this.router.navigate(['/restrooms', this.restroomId]), 1000);
       },
       error: (e) => {
-        this.statusMsg = `❌ ${e.error?.message || 'Failed to add restroom'}`;
+        this.statusMsg = `❌ ${e.error?.message || 'Failed to update restroom'}`;
       }
     });
   }

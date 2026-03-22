@@ -3,6 +3,7 @@ import { HomeComponent } from './components/home/home';
 import { AuthComponent } from './components/auth/auth';
 import { RestroomDetailComponent } from './components/restroom-detail/restroom-detail';
 import { AddRestroomComponent } from './components/add-restroom/add-restroom';
+import { EditRestroomComponent } from './components/edit-restroom/edit-restroom';
 import { ProfileComponent } from './components/profile/profile';
 import { SavedComponent } from './components/saved/saved';
 import { FlaggedComponent } from './components/flagged/flagged';
@@ -17,6 +18,7 @@ export const routes: Routes = [
   { path: 'auth', component: AuthComponent },
   { path: 'restrooms/:id', component: RestroomDetailComponent },
   { path: 'add-restroom', component: AddRestroomComponent },
+  { path: 'edit-restroom/:id', component: EditRestroomComponent },
   { path: 'profile', component: ProfileComponent },
   { path: 'saved', component: SavedComponent },
   { path: 'flagged', component: FlaggedComponent },

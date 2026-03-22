@@ -121,4 +121,13 @@ export class ApiService {
   adminDeleteRestroom(id: string): Observable<any> {
     return this.http.delete(`${BASE_URL}/admin/restrooms/${id}`, { headers: this.authHeaders() });
   }
+
+  // ─── Navigation ─────────────────────────────────────────────────────────────
+  getDirections(
+    start: { latitude: number; longitude: number }, 
+    end: { latitude: number; longitude: number },
+    profile: 'driving-car' | 'foot-walking' = 'driving-car'
+  ): Observable<any> {
+    return this.http.post(`${BASE_URL}/navigation/directions`, { start, end, profile });
+  }
 }

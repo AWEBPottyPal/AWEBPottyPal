@@ -2,7 +2,6 @@ import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angula
 import { RouterLink, Router, NavigationEnd } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
-import { Restroom } from '../../models/restroom.model';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 
@@ -12,15 +11,20 @@ import { takeUntil, filter } from 'rxjs/operators';
   template: `
     <h2>⭐ Reviewed Restrooms</h2>
     <p>{{ statusMsg }}</p>
-    @for (r of restrooms; track r._id) {
-      <div style="border:1px solid #ccc; margin:6px; padding:6px;">
-        <strong>{{ r.name }}</strong><br>
-        <small>{{ r.description }}</small><br>
-        <a [routerLink]="['/restrooms', r._id]">View →</a>
-        <button (click)="deleteReview(r._id)">🗑️ Delete Review</button>
+    @for (r of reviews; track r._id) {
+      <div style="border:1px solid #e0e0e0; margin-bottom:12px; padding:15px; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <strong style="font-size: 1.1em;">{{ r.restroom?.name || 'Unknown Restroom' }}</strong><br>
+        <span style="color: #f39c12; font-weight: bold;">★ {{ r.rating }}</span><br>
+        <p style="margin: 8px 0; color: #444; font-style: italic;">"{{ r.comment }}"</p>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+          @if (r.restroom?._id) {
+            <a [routerLink]="['/restrooms', r.restroom._id]" style="text-decoration: none; padding: 4px 8px; background: #0066cc; color: white; border-radius: 4px; font-size: 0.9em; font-weight: bold;">View Restroom →</a>
+          }
+          <button (click)="deleteReview(r._id)" style="padding: 4px 8px; background: #fee; border: 1px solid #fcc; color: red; border-radius: 4px; cursor: pointer; font-size: 0.9em; font-weight: bold;">🗑️ Delete Review</button>
+        </div>
       </div>
     }
-    @if (restrooms.length === 0 && !statusMsg) { <p>No reviewed restrooms.</p> }
+    @if (reviews.length === 0 && !statusMsg) { <p style="color: #666; font-style: italic;">No reviewed restrooms.</p> }
   `
 })
 export class ReviewedComponent implements OnInit, OnDestroy {
@@ -30,14 +34,12 @@ export class ReviewedComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
 
-  restrooms: Restroom[] = [];
+  reviews: any[] = [];
   statusMsg = '';
 
   ngOnInit() {
-    // Defer initial fetch to avoid ExpressionChangedAfterItHasBeenCheckedError
     setTimeout(() => this.fetchData(), 0);
 
-    // Refetch data whenever navigation completes to this page
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
@@ -57,10 +59,8 @@ export class ReviewedComponent implements OnInit, OnDestroy {
 
   private fetchData() {
     const id = this.auth.getUserId();
-    console.log('[Reviewed] User ID:', id);
     if (!id) { 
       this.statusMsg = '⚠️ Not logged in.';
-      console.warn('[Reviewed] No user ID found');
       this.cdr.markForCheck();
       return; 
     }
@@ -68,11 +68,9 @@ export class ReviewedComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
     this.api.getReviewedRestrooms(id).subscribe({
       next: (data) => { 
-        console.log('[Reviewed] Data received:', data);
-        this.restrooms = Array.isArray(data) ? data : [];
+        this.reviews = Array.isArray(data) ? data : [];
         this.statusMsg = '';
         this.cdr.markForCheck();
-        console.log('[Reviewed] Restrooms set:', this.restrooms);
       },
       error: (e) => { 
         console.error('[Reviewed] Error:', e);
@@ -82,35 +80,16 @@ export class ReviewedComponent implements OnInit, OnDestroy {
     });
   }
 
-  deleteReview(restroomId: string) {
+  deleteReview(reviewId: string) {
     if (!confirm('Delete your review for this restroom?')) return;
     
-    // Fetch reviews for this restroom to find the user's review
-    this.api.getReviews(restroomId).subscribe({
-      next: (reviews) => {
-        const userReview = reviews.find((r: any) => 
-          r.user && (r.user._id === this.auth.getUserId() || r.user === this.auth.getUserId())
-        );
-        if (!userReview) {
-          this.statusMsg = '⚠️ Review not found';
-          this.cdr.markForCheck();
-          return;
-        }
-        // Delete the review
-        this.api.deleteReview(userReview._id).subscribe({
-          next: () => {
-            this.statusMsg = '✅ Review deleted';
-            this.fetchData();
-          },
-          error: (e) => {
-            console.error('[Reviewed] Delete error:', e);
-            this.statusMsg = `❌ ${e.error?.message || e.message}`;
-            this.cdr.markForCheck();
-          }
-        });
+    this.api.deleteReview(reviewId).subscribe({
+      next: () => {
+        this.statusMsg = '✅ Review deleted';
+        this.fetchData();
       },
       error: (e) => {
-        console.error('[Reviewed] Fetch reviews error:', e);
+        console.error('[Reviewed] Delete error:', e);
         this.statusMsg = `❌ ${e.error?.message || e.message}`;
         this.cdr.markForCheck();
       }

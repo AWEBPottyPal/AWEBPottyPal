@@ -118,15 +118,15 @@ router.get("/flagged-restrooms/:id", protect, async (req, res) => {
 });
 
 // @route   GET /api/users/reviewed-restrooms/:id
-// @desc    Get user's reviewed restrooms
+// @desc    Get user's reviewed restrooms and review comments
 // @access  Private
 router.get("/reviewed-restrooms/:id", protect, async (req, res) => {
   console.log("[GET /api/users/reviewed-restrooms/:id] Fetching for user:", req.params.id, "Auth user:", req.user._id);
   try {
-    const user = await User.findById(req.params.id).populate("reviewedRestrooms");
-    if (!user) return res.status(404).json({ message: "User not found" });
-    console.log("[GET /api/users/reviewed-restrooms/:id] Count:", user.reviewedRestrooms.length, "Data:", user.reviewedRestrooms);
-    res.json(user.reviewedRestrooms);
+    const reviews = await Review.find({ user: req.params.id }).populate("restroom");
+    if (!reviews) return res.status(404).json({ message: "Reviews not found" });
+    console.log("[GET /api/users/reviewed-restrooms/:id] Count:", reviews.length);
+    res.json(reviews);
   } catch (error) {
     console.error("[GET /api/users/reviewed-restrooms/:id] Error:", error.message);
     res.status(500).json({ message: "Error fetching reviewed restrooms", error: error.message });
