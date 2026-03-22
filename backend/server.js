@@ -22,7 +22,7 @@ if (process.env.ORS_API_KEY) {
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json());
 
 // Routes
 app.use("/api/restrooms", restroomRoutes);

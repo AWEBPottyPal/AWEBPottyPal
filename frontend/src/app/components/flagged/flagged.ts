@@ -1,26 +1,106 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { RouterLink, Router, NavigationEnd } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { Restroom } from '../../models/restroom.model';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
+import { LucideAngularModule, Flag, MapPin, Undo2, Eye, CheckCircle, XCircle, ImageOff, AlertOctagon } from 'lucide-angular';
 
 @Component({
   selector: 'app-flagged',
-  imports: [RouterLink],
+  standalone: true,
+  imports: [RouterLink, CommonModule, LucideAngularModule],
   template: `
-    <h2>🚩 Flagged Restrooms</h2>
-    <p>{{ statusMsg }}</p>
-    @for (r of restrooms; track r._id) {
-      <div style="border:1px solid #ccc; margin:6px; padding:6px;">
-        <strong>{{ r.name }}</strong><br>
-        <small>{{ r.description }}</small><br>
-        <a [routerLink]="['/restrooms', r._id]">View →</a>
-        <button (click)="unflag(r._id)">🚩 Unflag</button>
+    <div class="min-h-screen bg-brand-50 pb-16 pt-8 animate-fade-in">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+          <div class="flex items-center gap-4">
+            <div class="bg-red-500 text-white p-4 rounded-[1.5rem] shadow-premium transform hover:scale-105 transition-transform">
+              <lucide-angular [img]="FlagIcon" [size]="36" [strokeWidth]="2.5"></lucide-angular>
+            </div>
+            <div>
+              <h2 class="text-3xl md:text-4xl font-extrabold text-brand-dark tracking-tight leading-tight">Flagged Restrooms</h2>
+              <p class="text-base font-medium text-slate-500 mt-1">Issues you have reported for admin review.</p>
+            </div>
+          </div>
+          
+          @if (statusMsg && !statusMsg.includes('Loading')) {
+            <div class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold shadow-sm"
+                 [ngClass]="statusMsg.includes('❌') ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'">
+              <lucide-angular [img]="statusMsg.includes('❌') ? XCircleIcon : CheckCircleIcon" [size]="18"></lucide-angular>
+              {{ statusMsg }}
+            </div>
+          } @else if (statusMsg) {
+             <div class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold shadow-sm bg-brand-50 text-brand-main border border-brand-200">
+              <div class="animate-spin rounded-full h-4 w-4 border-2 border-brand-200 border-t-brand-main"></div>
+              {{ statusMsg }}
+            </div>
+          }
+        </div>
+    
+        @if (restrooms.length === 0 && !statusMsg) {
+          <div class="py-20 text-center bg-white rounded-[2.5rem] border-2 border-slate-200 border-dashed shadow-sm flex flex-col items-center">
+            <div class="bg-slate-50 p-6 rounded-full mb-6">
+              <lucide-angular [img]="FlagIcon" [size]="64" class="text-slate-300"></lucide-angular>
+            </div>
+            <p class="font-black text-2xl text-brand-dark mb-2">No flagged restrooms</p>
+            <p class="text-base font-medium text-slate-500 max-w-md mx-auto mb-8">You haven't reported any restrooms. Thanks for helping keep the community clean and accurate!</p>
+            <a routerLink="/" class="inline-flex items-center gap-2 px-8 py-4 bg-slate-800 text-white font-black rounded-xl shadow-premium hover:bg-black hover:-translate-y-1 transition-all">
+              Return to Map
+            </a>
+          </div>
+        }
+    
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          @for (r of restrooms; track r._id) {
+            <div class="group flex flex-col bg-white rounded-[2rem] border border-white overflow-hidden shadow-soft hover:shadow-premium transition-all duration-300 hover:-translate-y-1.5 animate-fade-in-up">
+              
+              <!-- Image Area -->
+              <div class="relative h-48 bg-slate-100 overflow-hidden shrink-0">
+                @if (r.images && r.images.length > 0) {
+                  <img [src]="r.images[0]" alt="Cover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60"></div>
+                } @else {
+                  <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
+                    <lucide-angular [img]="ImageOffIcon" [size]="48" class="mb-3 opacity-50"></lucide-angular>
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">No Image</span>
+                  </div>
+                }
+                
+                <div class="absolute top-4 left-4 flex flex-col gap-2">
+                  <span class="bg-red-500/95 backdrop-blur text-white text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-xl shadow-floating flex items-center gap-1.5">
+                    <lucide-angular [img]="AlertOctagonIcon" [size]="14"></lucide-angular> Pending Review
+                  </span>
+                </div>
+              </div>
+              
+              <!-- Content Area -->
+              <div class="p-6 flex flex-col flex-1 relative bg-white">
+                <h4 class="text-xl font-black text-brand-dark mb-2 truncate" [title]="r.name">{{ r.name }}</h4>
+                <div class="flex items-start gap-2 mb-4">
+                  <lucide-angular [img]="MapPinIcon" [size]="14" class="text-slate-400 mt-1 shrink-0"></lucide-angular>
+                  <p class="text-sm font-medium text-slate-500 line-clamp-2 leading-relaxed">{{ r.description || 'No description provided.' }}</p>
+                </div>
+                
+                <div class="mt-auto pt-5 border-t border-slate-100 flex gap-3">
+                  <a [routerLink]="['/restrooms', r._id]" class="flex-1 flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-800 text-slate-700 hover:text-white font-black py-3 rounded-xl transition-all shadow-sm">
+                    <lucide-angular [img]="EyeIcon" [size]="16"></lucide-angular> View
+                  </a>
+                  <button (click)="unflag(r._id)" class="flex items-center justify-center px-4 bg-white hover:bg-amber-50 text-slate-400 hover:text-amber-600 border-2 border-slate-100 hover:border-amber-200 font-bold rounded-xl transition-all shadow-sm" title="Undo Flag">
+                    <lucide-angular [img]="Undo2Icon" [size]="18"></lucide-angular>
+                  </button>
+                </div>
+              </div>
+              
+            </div>
+          }
+        </div>
       </div>
-    }
-    @if (restrooms.length === 0 && !statusMsg) { <p>No flagged restrooms.</p> }
+    </div>
   `
 })
 export class FlaggedComponent implements OnInit, OnDestroy {
@@ -30,14 +110,21 @@ export class FlaggedComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
 
+  FlagIcon = Flag;
+  MapPinIcon = MapPin;
+  Undo2Icon = Undo2;
+  EyeIcon = Eye;
+  CheckCircleIcon = CheckCircle;
+  XCircleIcon = XCircle;
+  ImageOffIcon = ImageOff;
+  AlertOctagonIcon = AlertOctagon;
+
   restrooms: Restroom[] = [];
   statusMsg = '';
 
   ngOnInit() {
-    // Defer initial fetch to avoid ExpressionChangedAfterItHasBeenCheckedError
     setTimeout(() => this.fetchData(), 0);
 
-    // Refetch data whenever navigation completes to this page
     this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
@@ -57,10 +144,8 @@ export class FlaggedComponent implements OnInit, OnDestroy {
 
   private fetchData() {
     const id = this.auth.getUserId();
-    console.log('[Flagged] User ID:', id);
     if (!id) { 
       this.statusMsg = '⚠️ Not logged in.';
-      console.warn('[Flagged] No user ID found');
       this.cdr.markForCheck();
       return; 
     }
@@ -68,14 +153,11 @@ export class FlaggedComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
     this.api.getFlaggedRestrooms(id).subscribe({
       next: (data) => { 
-        console.log('[Flagged] Data received:', data);
         this.restrooms = Array.isArray(data) ? data : [];
         this.statusMsg = '';
         this.cdr.markForCheck();
-        console.log('[Flagged] Restrooms set:', this.restrooms);
       },
       error: (e) => { 
-        console.error('[Flagged] Error:', e);
         this.statusMsg = `❌ ${e.error?.message || e.message || 'Failed to load flagged restrooms'}`;
         this.cdr.markForCheck();
       }
@@ -83,14 +165,13 @@ export class FlaggedComponent implements OnInit, OnDestroy {
   }
 
   unflag(restroomId: string) {
-    if (!confirm('Unflag this restroom?')) return;
+    if (!confirm('Withdraw your flag report for this restroom?')) return;
     this.api.flagRestroom(restroomId).subscribe({
       next: () => {
-        this.statusMsg = '✅ Restroom unflagged';
+        this.statusMsg = 'Flag report withdrawn';
         this.fetchData();
       },
       error: (e) => {
-        console.error('[Flagged] Unflag error:', e);
         this.statusMsg = `❌ ${e.error?.message || e.message}`;
         this.cdr.markForCheck();
       }

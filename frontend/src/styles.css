@@ -1,2 +1,10 @@
-/* You can add global styles to this file, and also import other style files */
 @import "leaflet/dist/leaflet.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-brand-50 text-slate-800 antialiased;
+  }
+}
