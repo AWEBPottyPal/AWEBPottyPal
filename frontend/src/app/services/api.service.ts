@@ -98,6 +98,10 @@ export class ApiService {
     return this.http.delete(`${BASE_URL}/reviews/${reviewId}`, { headers: this.authHeaders() });
   }
 
+  editReview(reviewId: string, rating: number, comment: string): Observable<any> {
+    return this.http.put(`${BASE_URL}/reviews/${reviewId}`, { rating, comment }, { headers: this.authHeaders() });
+  }
+
   // Get restrooms added by a specific user (My Restrooms)
   getRestroomsByUser(userId: string): Observable<any> {
     return this.http.get(`${BASE_URL}/restrooms/user/${userId}`, { headers: this.authHeaders() });

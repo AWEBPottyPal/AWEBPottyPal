@@ -13,6 +13,11 @@ router.post("/", protect, async (req, res) => {
   const { restroomId, rating, comment } = req.body;
 
   try {
+    const existingReview = await Review.findOne({ restroom: restroomId, user: req.user._id });
+    if (existingReview) {
+      return res.status(400).json({ message: "You have already reviewed this restroom." });
+    }
+
     const review = await Review.create({
       restroom: restroomId,
       user: req.user._id,
@@ -60,8 +65,8 @@ router.delete('/:id', protect, async (req, res) => {
     const review = await Review.findById(req.params.id);
     if (!review) return res.status(404).json({ message: 'Review not found' });
 
-    // Only the review's author may delete
-    if (review.user.toString() !== req.user._id.toString()) {
+    // Only the review's author or an admin may delete
+    if (review.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Not authorized to delete this review' });
     }
 
@@ -80,6 +85,33 @@ router.delete('/:id', protect, async (req, res) => {
   } catch (error) {
     console.error('[DELETE /api/reviews/:id] Error:', error.message);
     res.status(500).json({ message: 'Failed to delete review', error: error.message });
+  }
+});
+
+// @route   PUT /api/reviews/:id
+// @desc    Update a review
+// @access  Private
+router.put('/:id', protect, async (req, res) => {
+  console.log('[PUT /api/reviews/:id] Edit review request:', req.params.id, 'Auth user:', req.user._id);
+  try {
+    const { rating, comment } = req.body;
+    const review = await Review.findById(req.params.id);
+    if (!review) return res.status(404).json({ message: 'Review not found' });
+
+    // Only the review's author may edit
+    if (review.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to edit this review' });
+    }
+
+    if (rating) review.rating = rating;
+    if (comment !== undefined) review.comment = comment; // allow empty comment
+    await review.save();
+
+    console.log('[PUT /api/reviews/:id] Review updated:', req.params.id);
+    res.json(review);
+  } catch (error) {
+    console.error('[PUT /api/reviews/:id] Error:', error.message);
+    res.status(500).json({ message: 'Failed to update review', error: error.message });
   }
 });
 

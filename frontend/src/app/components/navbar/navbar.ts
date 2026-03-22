@@ -12,11 +12,11 @@ import { DatetimeService } from '../../services/datetime.service';
       <div>
         <strong>🚻 PottyPal</strong> |
         <a routerLink="/">Home</a> |
-        <a routerLink="/add-restroom">Add Restroom</a> |
         @if (auth.isAdmin()) {
           <a routerLink="/flagged-restrooms">🚩 Community Flagged</a> |
         }
         @if (auth.isLoggedIn()) {
+          <a routerLink="/add-restroom">Add Restroom</a> |
           <a routerLink="/profile">Profile</a> |
           <a routerLink="/saved">Saved</a> |
           <a routerLink="/flagged">Flagged</a> |

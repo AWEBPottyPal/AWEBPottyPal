@@ -104,16 +104,22 @@ import type * as L from 'leaflet';
 
         <hr>
         <h3>Add Review</h3>
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-          <label style="display: block; margin-bottom: 10px;">Rating (1–5): 
-            <input [(ngModel)]="rating" type="number" min="1" max="5" style="width: 60px; padding: 4px;" />
-          </label>
-          <label style="display: block; margin-bottom: 10px;">Comment: 
-            <input [(ngModel)]="comment" placeholder="Your experience..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
-          </label>
-          <button (click)="submitReview()" style="padding: 8px 16px; border-radius: 4px; background: #4285F4; color: white; border: none; cursor: pointer;">Submit Review</button>
-          <p style="margin-top: 10px; margin-bottom: 0;">{{ reviewMsg }}</p>
-        </div>
+        @if (auth.isLoggedIn() && !hasReviewed) {
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+            <label style="display: block; margin-bottom: 10px;">Rating (1–5): 
+              <input [(ngModel)]="rating" type="number" min="1" max="5" style="width: 60px; padding: 4px;" />
+            </label>
+            <label style="display: block; margin-bottom: 10px;">Comment: 
+              <input [(ngModel)]="comment" placeholder="Your experience..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
+            </label>
+            <button (click)="submitReview()" style="padding: 8px 16px; border-radius: 4px; background: #4285F4; color: white; border: none; cursor: pointer;">Submit Review</button>
+            <p style="margin-top: 10px; margin-bottom: 0;">{{ reviewMsg }}</p>
+          </div>
+        } @else if (auth.isLoggedIn() && hasReviewed) {
+           <div style="background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9; color: #2e7d32;">
+             ✅ You have already reviewed this restroom. Your review is displayed below.
+           </div>
+        }
       } @else {
         <p><em>Login to save, flag, or review this restroom.</em></p>
       }
@@ -122,10 +128,34 @@ import type * as L from 'leaflet';
       <h3>Reviews</h3>
       @for (r of reviews; track $index) {
         <div style="border:1px solid #e0e0e0; margin-bottom:10px; padding:15px; border-radius: 8px; background: #fff;">
-          <strong style="font-size: 1.1em;">{{ r.user?.username }}</strong> — <span style="color: #f39c12; font-weight: bold;">★ {{ r.rating }}</span><br>
-          <p style="margin: 8px 0; color: #444;">{{ r.comment }}</p>
-          @if (auth.getUserId() && ((r.user && (r.user._id === auth.getUserId())) || (r.user && (r.user === auth.getUserId())))) {
-            <button (click)="deleteReview(r._id)" style="font-size: 0.85em; padding: 4px 8px; border: 1px solid #ccc; background: #eee; border-radius: 4px; cursor: pointer;">🗑️ Delete Review</button>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <strong style="font-size: 1.1em;">{{ r.user?.username || 'Unknown User' }}</strong>
+              @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId())) {
+                <span style="font-size: 0.8em; background: #003366; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Your Review</span>
+              }
+            </div>
+            <span style="color: #f39c12; font-weight: bold; font-size: 1.1em;">★ {{ r.rating }}</span>
+          </div>
+
+          @if (editingReviewId === r._id) {
+            <div style="margin-top: 10px; padding: 10px; background: #f9f9f9; border: 1px solid #ccc; border-radius: 8px;">
+              <label>Rating: <input type="number" min="1" max="5" [(ngModel)]="editRating" style="width: 50px;"/></label><br>
+              <textarea [(ngModel)]="editComment" rows="3" style="width: 100%; margin-top: 10px; box-sizing: border-box;"></textarea><br>
+              <button (click)="saveEditReview(r._id)" style="margin-top: 5px; background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Save</button>
+              <button (click)="cancelEditReview()" style="margin-top: 5px; margin-left: 10px; background: #ccc; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Cancel</button>
+            </div>
+          } @else {
+            <p style="margin: 8px 0; color: #444;">{{ r.comment }}</p>
+          }
+
+          @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId() || auth.isAdmin())) {
+            <div style="margin-top: 10px; display: flex; gap: 10px;">
+              @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId()) && editingReviewId !== r._id) {
+                <button (click)="startEditReview(r)" style="font-size: 0.85em; padding: 4px 8px; border: 1px solid #ccc; background: #f39c12; color: white; border: none; border-radius: 4px; cursor: pointer;">✏️ Edit</button>
+              }
+              <button (click)="deleteReview(r._id)" style="font-size: 0.85em; padding: 4px 8px; border: 1px solid #ccc; background: #fee; color: red; border: none; border-radius: 4px; cursor: pointer;">🗑️ Delete</button>
+            </div>
           }
         </div>
       }
@@ -159,6 +189,11 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   comment = '';
   isSaved = false;
   isFlagged = false;
+  
+  hasReviewed = false;
+  editingReviewId: string | null = null;
+  editRating = 5;
+  editComment = '';
   
   userPos: {lat: number; lng: number} | null = null;
   locationEnabled = false;
@@ -380,6 +415,22 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
     this.api.getReviews(id).subscribe({
       next: (r) => { 
         this.reviews = r;
+        
+        const currentUserId = this.auth.getUserId();
+        if (currentUserId) {
+          // Check if the user has already reviewed
+          this.hasReviewed = this.reviews.some((rev: any) => rev.user && (rev.user._id === currentUserId || rev.user === currentUserId));
+          
+          // Sort to put current user's review on top
+          this.reviews.sort((a: any, b: any) => {
+            const aIsCurrent = a.user && (a.user._id === currentUserId || a.user === currentUserId);
+            const bIsCurrent = b.user && (b.user._id === currentUserId || b.user === currentUserId);
+            if (aIsCurrent && !bIsCurrent) return -1;
+            if (!aIsCurrent && bIsCurrent) return 1;
+            return 0;
+          });
+        }
+        
         this.cd.markForCheck();
       },
       error: (e) => console.error('[Detail] Reviews error:', e)
@@ -460,7 +511,8 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
     this.api.addReview(this.restroom!._id, this.rating, this.comment).subscribe({
       next: (r) => {
         this.reviewMsg = '✅ Review submitted!';
-        this.reviews.push({ ...r, user: { username: this.auth.currentUser()?.username } });
+        this.hasReviewed = true;
+        this.reviews.unshift({ ...r, user: { _id: this.auth.getUserId(), username: this.auth.currentUser()?.username } });
         this.cd.markForCheck();
       },
       error: (e) => { this.reviewMsg = `❌ ${e.error?.message}`; this.cd.markForCheck(); }
@@ -472,7 +524,40 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
     this.api.deleteReview(reviewId).subscribe({
       next: () => {
         this.reviews = this.reviews.filter(r => r._id !== reviewId);
+        // If they deleted their own review, they can review again
+        const currentUserId = this.auth.getUserId();
+        this.hasReviewed = this.reviews.some((rev: any) => rev.user && (rev.user._id === currentUserId || rev.user === currentUserId));
+
         this.reviewMsg = '✅ Review deleted';
+        this.cd.markForCheck();
+      },
+      error: (e) => {
+        this.reviewMsg = `❌ ${e.error?.message || e.message}`;
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  startEditReview(rev: any) {
+    this.editingReviewId = rev._id;
+    this.editRating = rev.rating;
+    this.editComment = rev.comment;
+  }
+
+  cancelEditReview() {
+    this.editingReviewId = null;
+  }
+
+  saveEditReview(reviewId: string) {
+    this.api.editReview(reviewId, this.editRating, this.editComment).subscribe({
+      next: (r) => {
+        const idx = this.reviews.findIndex(rev => rev._id === reviewId);
+        if (idx !== -1) {
+          this.reviews[idx].rating = r.rating;
+          this.reviews[idx].comment = r.comment;
+        }
+        this.editingReviewId = null;
+        this.reviewMsg = '✅ Review updated';
         this.cd.markForCheck();
       },
       error: (e) => {
