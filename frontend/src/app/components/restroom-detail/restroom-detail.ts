@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, PLATFORM_ID, AfterViewInit } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CommonModule, isPlatformBrowser, TitleCasePipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -10,11 +10,12 @@ import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import type * as L from 'leaflet';
 import { LucideAngularModule, Flag, Star, Trash2, Edit3, Bookmark, CheckCircle, Navigation, MapPin, User, LocateFixed, Maximize, Minimize, CheckSquare, XCircle, Info, MessageSquare } from 'lucide-angular';
+import { RecentDatePipe } from '../../pipes/recent-date.pipe';
 
 @Component({
   selector: 'app-restroom-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule],
+  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, RecentDatePipe, TitleCasePipe],
   styles: [`
     .fullscreen-map {
       position: fixed !important;
@@ -141,7 +142,7 @@ import { LucideAngularModule, Flag, Star, Trash2, Edit3, Bookmark, CheckCircle, 
                   <div class="flex flex-wrap gap-2">
                     @if (restroom.amenities?.length) {
                       @for (a of restroom.amenities; track a) {
-                        <span class="bg-brand-50 text-brand-800 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold shadow-sm">{{ a }}</span>
+                        <span class="bg-brand-50 text-brand-800 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold shadow-sm">{{ a | titlecase }}</span>
                       }
                     } @else {
                       <span class="text-slate-400 italic text-sm font-medium px-1">None listed</span>
@@ -304,7 +305,7 @@ import { LucideAngularModule, Flag, Star, Trash2, Edit3, Bookmark, CheckCircle, 
                             <span class="bg-emerald-50 text-emerald-700 text-[11px] font-black px-2 py-1 rounded-lg uppercase tracking-wider">Recent</span>
                           }
                         </div>
-                        <div class="text-xs sm:text-sm text-slate-400 font-semibold mt-1">{{ formatReviewDate(r.createdAt) }}</div>
+                        <div class="text-xs sm:text-sm text-slate-400 font-semibold mt-1">{{ r.createdAt | recentDate }}</div>
                         <div class="flex items-center gap-1 mt-1">
                           @for (star of [1,2,3,4,5]; track star) {
                             <lucide-angular [img]="StarIcon" [size]="13" [class]="star <= r.rating ? 'text-amber-500 fill-amber-500' : 'text-slate-300'"></lucide-angular>
@@ -395,6 +396,9 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   XCircleIcon = XCircle;
   InfoIcon = Info;
   MessageSquareIcon = MessageSquare;
+
+  /** Delegates to LocationService — used in template */
+  isRestroomOpenNow = (r: Restroom) => this.locationService.isRestroomOpenNow(r);
 
   private leaflet: any;
   private map!: L.Map;
@@ -803,39 +807,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
     if (!createdAt) return false;
     const created = new Date(createdAt).getTime();
     if (Number.isNaN(created)) return false;
-
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
     return Date.now() - created <= sevenDays;
-  }
-
-  formatReviewDate(createdAt?: string): string {
-    if (!createdAt) return 'Feedback date unavailable';
-
-    const created = new Date(createdAt);
-    if (Number.isNaN(created.getTime())) return 'Feedback date unavailable';
-
-    const diffMs = Date.now() - created.getTime();
-    const minute = 60 * 1000;
-    const hour = 60 * minute;
-    const day = 24 * hour;
-
-    let relative = '';
-    if (diffMs < hour) {
-      const minutes = Math.max(1, Math.floor(diffMs / minute));
-      relative = `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-    } else if (diffMs < day) {
-      const hours = Math.floor(diffMs / hour);
-      relative = `${hours} hour${hours === 1 ? '' : 's'} ago`;
-    } else {
-      const days = Math.floor(diffMs / day);
-      relative = `${days} day${days === 1 ? '' : 's'} ago`;
-    }
-
-    const absolute = created.toLocaleString('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
-
-    return `${relative} • ${absolute}`;
   }
 }

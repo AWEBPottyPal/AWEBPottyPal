@@ -248,6 +248,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private platformId = inject(PLATFORM_ID);
   private destroy$ = new Subject<void>();
 
+  /** Delegates to LocationService — used by template bindings */
+  isRestroomOpenNow = (r: Restroom) => this.locationService.isRestroomOpenNow(r);
+
+
   LocateFixedIcon = LocateFixed;
   MaximizeIcon = Maximize;
   MinimizeIcon = Minimize;
@@ -411,54 +415,13 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.updateRestroomMarkers();
   }
 
-  private getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371e3; 
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  }
-
-  isRestroomOpenNow(r: Restroom): boolean {
-    if (!r.operatingHours) return true;
-    
-    const { is24Hours, openTime, closeTime } = r.operatingHours;
-    if (is24Hours) return true;
-    if (!openTime || !closeTime) return true;
-
-    const now = new Date();
-    const phTimeStr = now.toLocaleString("en-US", {timeZone: "Asia/Manila"});
-    const phTime = new Date(phTimeStr);
-    
-    const currentHour = phTime.getHours();
-    const currentMinute = phTime.getMinutes();
-    
-    const [openH, openM] = openTime.split(':').map(Number);
-    const [closeH, closeM] = closeTime.split(':').map(Number);
-    
-    const currentTotalMins = currentHour * 60 + currentMinute;
-    const openTotalMins = openH * 60 + openM;
-    const closeTotalMins = closeH * 60 + closeM;
-    
-    if (closeTotalMins < openTotalMins) {
-      return currentTotalMins >= openTotalMins || currentTotalMins <= closeTotalMins;
-    } else {
-      return currentTotalMins >= openTotalMins && currentTotalMins <= closeTotalMins;
-    }
-  }
 
   private filterRestrooms() {
     const center = this.userPos || { lat: this.locationService.HAU_COORDS[0], lng: this.locationService.HAU_COORDS[1] };
     
     this.filteredRestrooms = this.restrooms.filter(r => {
       if (!r.location || !r.location.latitude || !r.location.longitude) return false;
-      const d = this.getDistance(center.lat, center.lng, r.location.latitude, r.location.longitude);
+      const d = this.locationService.getDistance(center.lat, center.lng, r.location.latitude, r.location.longitude);
       if (d > this.radius) return false;
 
       if (this.minRating !== null && this.minRating > 0) {
@@ -472,15 +435,15 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       }
 
       if (this.showOpenOnly) {
-        if (!this.isRestroomOpenNow(r)) return false;
+        if (!this.locationService.isRestroomOpenNow(r)) return false;
       }
 
       return true;
     });
 
     this.filteredRestrooms.sort((a, b) => {
-      const distA = this.getDistance(center.lat, center.lng, a.location!.latitude, a.location!.longitude);
-      const distB = this.getDistance(center.lat, center.lng, b.location!.latitude, b.location!.longitude);
+      const distA = this.locationService.getDistance(center.lat, center.lng, a.location!.latitude, a.location!.longitude);
+      const distB = this.locationService.getDistance(center.lat, center.lng, b.location!.latitude, b.location!.longitude);
       return distA - distB;
     });
 
@@ -539,7 +502,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       if (r.location && r.location.latitude && r.location.longitude) {
         
         const isSaved = this.savedRestroomIds.has(r._id!);
-        const isOpen = this.isRestroomOpenNow(r);
+        const isOpen = this.locationService.isRestroomOpenNow(r);
         
         // Match the blue theme of the second photo (with blue dots for pins)
         let bgColor = isSaved ? '#10B981' : '#2563EB'; // Green if saved, else Brand main
