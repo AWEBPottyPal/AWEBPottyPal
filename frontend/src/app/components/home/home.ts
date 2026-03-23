@@ -10,12 +10,13 @@ import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 import type * as L from 'leaflet';
 import { LucideAngularModule, LocateFixed, Maximize, Minimize, X, RefreshCcw, Bath, Star, MapPin, Search, Filter, ArrowRight } from 'lucide-angular';
+import { LoadingModalComponent } from '../loading-modal/loading-modal';
 
 const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
 
 @Component({
   selector: 'app-home',
-  imports: [RouterLink, FormsModule, CommonModule, LucideAngularModule],
+  imports: [RouterLink, FormsModule, CommonModule, LucideAngularModule, LoadingModalComponent],
   standalone: true,
   styles: [`
     .fullscreen-map {
@@ -36,6 +37,7 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
   `],
   template: `
+    <app-loading-modal [visible]="isLoading"></app-loading-modal>
     <div class="bg-brand-50 w-full min-h-screen pb-10 pt-6 animate-fade-in font-sans">
       <div class="app-page flex flex-col h-[calc(100vh-4rem)] min-h-[800px]">
         
@@ -248,6 +250,19 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private platformId = inject(PLATFORM_ID);
   private destroy$ = new Subject<void>();
 
+  isLoading = true;
+  private dataReady = false;
+  private mapReady = false;
+
+  private checkLoadingComplete() {
+    if (this.dataReady && this.mapReady) {
+      setTimeout(() => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }, 300);
+    }
+  }
+
   /** Delegates to LocationService — used by template bindings */
   isRestroomOpenNow = (r: Restroom) => this.locationService.isRestroomOpenNow(r);
 
@@ -413,6 +428,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.updateUserMarkerAndRadius();
     this.updateRestroomMarkers();
+    this.mapReady = true;
+    this.checkLoadingComplete();
   }
 
 
@@ -451,6 +468,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   fetchData() {
+    this.isLoading = true;
+    this.dataReady = false;
+    this.mapReady = !!this.map;
     this.statusMsg = 'Loading...';
     this.cdr.markForCheck();
     
@@ -481,11 +501,14 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         this.restrooms = res;
         this.statusMsg = '';
         this.filterRestrooms();
+        this.dataReady = true;
+        this.checkLoadingComplete();
         this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('[Home] Error:', err);
         this.statusMsg = 'Failed to load';
+        this.isLoading = false;
         this.cdr.markForCheck();
       }
     });
