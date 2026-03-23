@@ -26,7 +26,7 @@ interface FlaggedRestroom {
   imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule],
   template: `
     <div class="min-h-screen bg-brand-50 pb-16 pt-8 animate-fade-in">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="app-page">
         <!-- Header Area -->
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div class="flex items-center gap-4">

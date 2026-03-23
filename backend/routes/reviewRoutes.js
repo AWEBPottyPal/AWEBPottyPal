@@ -43,10 +43,9 @@ router.post("/", protect, async (req, res) => {
 router.get("/:restroomId", async (req, res) => {
   console.log("[GET /api/reviews/:restroomId] Fetching reviews for restroom:", req.params.restroomId);
   try {
-    const reviews = await Review.find({ restroom: req.params.restroomId }).populate(
-      "user",
-      "username"
-    );
+    const reviews = await Review.find({ restroom: req.params.restroomId })
+      .sort({ createdAt: -1 })
+      .populate("user", "username");
     console.log(`[GET /api/reviews/:restroomId] Found ${reviews.length} reviews`);
     res.json(reviews);
   } catch (error) {

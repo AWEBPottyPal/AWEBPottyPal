@@ -9,9 +9,9 @@ import { Restroom } from '../../models/restroom.model';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 import type * as L from 'leaflet';
-import { LucideAngularModule, LocateFixed, Maximize, Minimize, X, RefreshCcw, Bath, Star, MapPin, Search, Filter } from 'lucide-angular';
+import { LucideAngularModule, LocateFixed, Maximize, Minimize, X, RefreshCcw, Bath, Star, MapPin, Search, Filter, ArrowRight } from 'lucide-angular';
 
-const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
+const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
 
 @Component({
   selector: 'app-home',
@@ -37,85 +37,87 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
   `],
   template: `
     <div class="bg-brand-50 w-full min-h-screen pb-10 pt-6 animate-fade-in font-sans">
-      <div class="px-4 md:px-6 w-full max-w-[1600px] mx-auto flex flex-col h-[calc(100vh-4rem)] min-h-[800px]">
+      <div class="app-page flex flex-col h-[calc(100vh-4rem)] min-h-[800px]">
         
-        <!-- Header & Top Controls -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6 shrink-0">
-          <div>
-            <h2 class="text-3xl font-black text-[#1E3A8A] tracking-tight">Potty Pal</h2>
-            <p class="text-sm font-semibold text-slate-500 mt-1">Find clean and accessible restrooms nearby.</p>
-          </div>
-          
-          <div class="flex flex-wrap items-center gap-3">
-            <label class="flex items-center gap-2 cursor-pointer bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm font-bold hover:shadow-md transition-all">
-              <input type="checkbox" [checked]="locationEnabled" (change)="toggleLocation($event)" class="rounded text-[#2563EB] focus:ring-[#2563EB] w-4 h-4 border-slate-300"> 
-              <span [class.text-[#2563EB]]="locationEnabled" [class.text-slate-600]="!locationEnabled">Live Location</span>
-            </label>
-            <button (click)="fetchData()" class="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-[#2563EB] text-white rounded-xl shadow-premium hover:bg-[#1D4ED8] transition-all" [title]="statusMsg">
-              <lucide-angular [img]="RefreshCcwIcon" [size]="14" [ngClass]="{'animate-spin': statusMsg && statusMsg.includes('Loading')}"></lucide-angular> Refresh
-            </button>
-          </div>
-        </div>
-    
-        <!-- Dynamic Filters Bar (Top of Map Area) -->
-        <div class="bg-white rounded-[1.5rem] p-4 shadow-sm border border-slate-100 flex flex-wrap items-center gap-4 mb-6 shrink-0 z-10 relative">
-          
-          <!-- Open Now -->
-          <label class="flex items-center gap-2 cursor-pointer text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg hover:bg-emerald-100 transition-all">
-            <input type="checkbox" [(ngModel)]="showOpenOnly" (change)="onFilterChange()" class="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 border-emerald-300">
-            OPEN NOW ONLY
-          </label>
-          
-          <div class="w-px h-6 bg-slate-200 hidden sm:block"></div>
-          
-          <!-- Radius -->
-          <div class="flex items-center gap-3 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
-            <label class="text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Radius <span class="text-[#2563EB] ml-1">{{ radius / 1000 | number:'1.0-1' }}km</span></label>
-            <input type="range" min="500" max="20000" step="500" [(ngModel)]="radius" (change)="onFilterChange()" class="w-24 sm:w-32 accent-[#2563EB] h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer">
-          </div>
-          
-          <div class="w-px h-6 bg-slate-200 hidden sm:block"></div>
-          
-          <!-- Min Rating -->
-          <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-            <label class="text-xs font-black text-slate-500 uppercase tracking-widest">Min Rating</label>
-            <div class="flex items-center bg-white border border-slate-200 rounded-md px-1 ml-1 overflow-hidden h-7 w-16">
-              <lucide-angular [img]="StarIcon" [size]="12" class="text-amber-500 ml-1"></lucide-angular>
-              <input type="number" min="0" max="5" step="0.5" [(ngModel)]="minRating" (ngModelChange)="onRatingChange($event)" class="w-full h-full border-none p-0 text-center text-xs font-bold text-slate-700 focus:ring-0 bg-transparent">
+        <div class="mb-6 shrink-0 rounded-[2rem] border border-slate-100 bg-white/95 p-5 shadow-soft">
+          <!-- Header & Top Controls -->
+          <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 class="text-3xl font-black text-[#1E3A8A] tracking-tight">Potty Pal</h2>
+              <p class="mt-1 text-sm font-semibold text-slate-500">Find clean and accessible restrooms nearby.</p>
             </div>
-            @if (minRating) {
-              <button (click)="clearRating()" class="text-slate-400 hover:text-red-500"><lucide-angular [img]="XIcon" [size]="14"></lucide-angular></button>
-            }
-          </div>
-          
-          <!-- Amenities -->
-          <div class="flex-1 min-w-[300px] flex items-center justify-end gap-2 ml-auto overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
-            <span class="text-xs font-black text-slate-400 uppercase tracking-widest mr-2 shrink-0">Amenities:</span>
-            @for (a of amenityOptions; track a) {
-              <label class="cursor-pointer shrink-0">
-                <input type="checkbox" [checked]="selectedAmenities.includes(a)" (change)="toggleAmenity(a)" class="hidden">
-                <div class="text-xs font-bold px-3 py-1.5 border rounded-lg whitespace-nowrap transition-colors"
-                     [ngClass]="selectedAmenities.includes(a) ? 'bg-[#EEF2FF] border-[#818CF8] text-[#4338CA]' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'">
-                  {{ a }}
-                </div>
+            
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-white hover:shadow-md cursor-pointer">
+                <input type="checkbox" [checked]="locationEnabled" (change)="toggleLocation($event)" class="h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]">
+                <span [class.text-[#2563EB]]="locationEnabled" [class.text-slate-600]="!locationEnabled">Live Location</span>
               </label>
-            }
+              <button (click)="fetchData()" class="flex items-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-premium transition-all hover:bg-[#1D4ED8]" [title]="statusMsg">
+                <lucide-angular [img]="RefreshCcwIcon" [size]="14" [ngClass]="{'animate-spin': statusMsg && statusMsg.includes('Loading')}"></lucide-angular> Refresh
+              </button>
+            </div>
           </div>
-          
+
+          <div class="my-5 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+    
+          <!-- Dynamic Filters Bar -->
+          <div class="flex flex-wrap items-center gap-4 z-10 relative">
+            
+            <!-- Open Now -->
+            <label class="flex items-center gap-2 cursor-pointer text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg hover:bg-emerald-100 transition-all">
+              <input type="checkbox" [(ngModel)]="showOpenOnly" (change)="onFilterChange()" class="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 border-emerald-300">
+              OPEN NOW ONLY
+            </label>
+            
+            <div class="w-px h-6 bg-slate-200 hidden sm:block"></div>
+            
+            <!-- Radius -->
+            <div class="flex items-center gap-3 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+              <label class="text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Radius <span class="text-[#2563EB] ml-1">{{ radius / 1000 | number:'1.0-1' }}km</span></label>
+              <input type="range" min="500" max="20000" step="500" [(ngModel)]="radius" (change)="onFilterChange()" class="w-24 sm:w-32 accent-[#2563EB] h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer">
+            </div>
+            
+            <div class="w-px h-6 bg-slate-200 hidden sm:block"></div>
+            
+            <!-- Min Rating -->
+            <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+              <label class="text-xs font-black text-slate-500 uppercase tracking-widest">Min Rating</label>
+              <div class="flex items-center bg-white border border-slate-200 rounded-md px-1 ml-1 overflow-hidden h-7 w-16">
+                <lucide-angular [img]="StarIcon" [size]="12" class="text-amber-500 ml-1"></lucide-angular>
+                <input type="number" min="0" max="5" step="0.5" [(ngModel)]="minRating" (ngModelChange)="onRatingChange($event)" class="w-full h-full border-none p-0 text-center text-xs font-bold text-slate-700 focus:ring-0 bg-transparent">
+              </div>
+              @if (minRating) {
+                <button (click)="clearRating()" class="text-slate-400 hover:text-red-500"><lucide-angular [img]="XIcon" [size]="14"></lucide-angular></button>
+              }
+            </div>
+            
+            <!-- Amenities -->
+            <div class="flex-1 min-w-[300px] flex items-center justify-end gap-2 ml-auto overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
+              <span class="text-xs font-black text-slate-400 uppercase tracking-widest mr-2 shrink-0">Amenities:</span>
+              @for (a of amenityOptions; track a) {
+                <label class="cursor-pointer shrink-0">
+                  <input type="checkbox" [checked]="selectedAmenities.includes(a)" (change)="toggleAmenity(a)" class="hidden">
+                  <div class="text-xs font-bold px-3 py-1.5 border rounded-lg whitespace-nowrap transition-colors"
+                       [ngClass]="selectedAmenities.includes(a) ? 'bg-[#EEF2FF] border-[#818CF8] text-[#4338CA]' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'">
+                    {{ a }}
+                  </div>
+                </label>
+              }
+            </div>
+          </div>
         </div>
     
-        <!-- Main Content Area: Left Column + Right Map -->
+        <div class="mb-4 shrink-0 px-1">
+          <h3 class="text-lg font-black text-[#1E3A8A] flex items-center gap-2">
+            Restrooms in your area <span class="bg-[#2563EB] text-white px-2.5 py-0.5 rounded-full text-xs shadow-sm">{{ filteredRestrooms.length }}</span>
+          </h3>
+        </div>
+
+        <!-- Main Content Area: List + Map -->
         <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
           
           <!-- Left Column: Available Restrooms List -->
           <div class="w-full lg:w-[420px] xl:w-[480px] bg-transparent flex flex-col h-full shrink-0">
-            <div class="flex items-center justify-between mb-4 shrink-0 px-1">
-              <h3 class="text-lg font-black text-[#1E3A8A] flex items-center gap-2">
-                Restrooms in your area <span class="bg-[#2563EB] text-white px-2.5 py-0.5 rounded-full text-xs shadow-sm">{{ filteredRestrooms.length }}</span>
-              </h3>
-            </div>
-            
-            <!-- Scrollable List -->
             <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar flex flex-col gap-4 pb-4 h-full relative">
               
               @if (filteredRestrooms.length === 0 && !statusMsg) {
@@ -127,66 +129,75 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
               }
               
               @for (r of filteredRestrooms; track r._id; let i = $index) {
-                <div class="group flex bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-premium hover:border-[#818CF8]/30 transition-all duration-300 relative animate-fade-in-up" [style.animation-delay]="(i * 40) + 'ms'">
+                <div class="group flex flex-row bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-premium hover:border-[#818CF8]/30 hover:scale-[1.01] transition-all duration-300 relative animate-fade-in-up" [style.animation-delay]="(i * 40) + 'ms'">
                   
-                  <!-- Left Side Image -->
-                  <div class="relative w-[130px] sm:w-[150px] bg-slate-100 shrink-0 border-r border-slate-200">
-                    @if (r.images && r.images.length > 0) {
-                      <img [src]="r.images[0]" alt="Cover" class="w-full h-full object-cover transition-transform duration-500" />
-                    } @else {
-                      <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50">
-                        <span class="text-sm font-black tracking-widest text-[#2563EB] opacity-90 italic">Potty Pal</span>
-                      </div>
-                    }
-                    
-                    <!-- Open/Close Badge overlay -->
-                    <div class="absolute top-2 left-2">
-                      @if (isRestroomOpenNow(r)) {
-                        <div class="w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" title="Open Now"></div>
+                  <!-- Left Side Image + CTA -->
+                  <div class="m-2 sm:m-3 w-24 sm:w-[132px] shrink-0 flex flex-col gap-2">
+                    <div class="relative h-24 sm:h-[132px] w-full rounded-xl sm:rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 shadow-sm">
+                      @if (r.images && r.images.length > 0) {
+                        <img [src]="r.images[0]" alt="Cover" class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                        <div class="absolute inset-0 bg-black/10 pointer-events-none"></div>
                       } @else {
-                        <div class="w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white shadow-sm" title="Closed"></div>
+                        <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50">
+                          <span class="text-sm font-black tracking-widest text-[#2563EB] opacity-90 italic">Potty Pal</span>
+                        </div>
                       }
+                      
+                      <!-- Open/Close Badge overlay -->
+                      <div class="absolute top-2 left-2">
+                        @if (isRestroomOpenNow(r)) {
+                          <div class="w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" title="Open Now"></div>
+                        } @else {
+                          <div class="w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white shadow-sm" title="Closed"></div>
+                        }
+                      </div>
                     </div>
+
+                    <a [routerLink]="['/restrooms', r._id]" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-brand-main px-2 py-2 text-xs font-black text-white shadow-sm transition-all hover:bg-brand-600 hover:shadow-md">
+                      View Restroom
+                      <lucide-angular [img]="ArrowRightIcon" [size]="12"></lucide-angular>
+                    </a>
                   </div>
                   
                   <!-- Right Side Details -->
-                  <div class="p-4 flex flex-col flex-1 min-w-0 justify-center">
-                    <div class="flex justify-between items-start gap-2 mb-1">
-                      <h4 class="text-[15px] font-black text-[#1E3A8A] truncate leading-snug hover:text-[#2563EB] transition-colors"><a [routerLink]="['/restrooms', r._id]">{{ r.name }}</a></h4>
+                  <div class="p-3 sm:p-4 flex flex-col flex-1 min-w-0 justify-center gap-2 sm:gap-3">
+                    <div class="flex items-start justify-between gap-2">
+                      <h4 class="min-w-0 flex-1 text-sm sm:text-lg font-black text-[#1E3A8A] leading-snug hover:text-[#2563EB] transition-colors line-clamp-2"><a [routerLink]="['/restrooms', r._id]">{{ r.name }}</a></h4>
                       @if (r.averageRating) {
-                        <span class="bg-amber-50 text-amber-600 text-[10px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shrink-0">
+                        <span class="bg-amber-50 text-amber-600 text-xs font-black px-2 py-1 rounded-lg flex items-center gap-1 shrink-0 shadow-sm self-start">
                            ★ {{ r.averageRating | number:'1.1-1' }}
                         </span>
                       }
                     </div>
                     
-                    <p class="text-xs font-semibold text-slate-400 mb-2.5 truncate flex items-center gap-1">
-                      <lucide-angular [img]="MapPinIcon" [size]="10"></lucide-angular> Addr: {{r.location?.latitude | number:'1.2-2'}}, {{r.location?.longitude | number:'1.2-2'}}
-                    </p>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      @if (isRestroomOpenNow(r)) {
+                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] sm:text-xs font-black uppercase tracking-wide text-emerald-700">Open</span>
+                      } @else {
+                        <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] sm:text-xs font-black uppercase tracking-wide text-red-700">Closed</span>
+                      }
                     
-                    <div class="text-[11px] text-slate-500 line-clamp-2 mb-1.5 leading-relaxed flex-1">
+                      <p class="text-xs font-semibold text-slate-500 flex items-center gap-1 min-w-0 leading-relaxed flex-1">
+                        <lucide-angular [img]="MapPinIcon" [size]="12" class="text-slate-400 shrink-0"></lucide-angular>
+                        <span class="line-clamp-1 sm:line-clamp-2">Addr: {{r.location?.latitude | number:'1.2-2'}}, {{r.location?.longitude | number:'1.2-2'}}</span>
+                      </p>
+                    </div>
+                    
+                    <div class="min-h-[2rem] text-xs text-slate-500 line-clamp-2 leading-relaxed">
                       {{ r.description || 'No description provided.' }}
                     </div>
                     
-                    <div class="mb-3">
-                      @if (isRestroomOpenNow(r)) {
-                        <span class="text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Open</span>
-                      } @else {
-                        <span class="text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-50 px-2 py-0.5 rounded">Closed</span>
-                      }
-                    </div>
-                    
                     <!-- Amenities Mini Tags -->
-                    <div class="flex flex-wrap gap-1 mt-auto">
+                    <div class="flex flex-wrap gap-1 mt-0.5">
                       @if (r.amenities && r.amenities.length) {
                         @for (am of r.amenities.slice(0,3); track am) {
-                           <span class="bg-[#F1F5F9] text-[#64748B] text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wide">{{ am }}</span>
+                           <span class="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">{{ am }}</span>
                         }
                         @if (r.amenities.length > 3) {
-                          <span class="bg-[#F1F5F9] text-[#64748B] text-[9px] font-bold px-1.5 py-0.5 rounded">+{{ r.amenities.length - 3 }}</span>
+                          <span class="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">+{{ r.amenities.length - 3 }}</span>
                         }
                       } @else {
-                        <span class="text-slate-300 text-[10px] italic">No amenities</span>
+                        <span class="text-slate-300 text-xs italic">No amenities</span>
                       }
                     </div>
                   </div>
@@ -223,7 +234,7 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
           </div>
           
         </div>
-        
+
       </div>
     </div>
   `
@@ -247,6 +258,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   MapPinIcon = MapPin;
   SearchIcon = Search;
   FilterIcon = Filter;
+  ArrowRightIcon = ArrowRight;
 
   leaflet: any;
   map!: L.Map;

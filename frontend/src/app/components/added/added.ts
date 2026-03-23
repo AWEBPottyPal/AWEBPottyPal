@@ -6,7 +6,7 @@ import { AuthService } from '../../services/auth.service';
 import { Restroom } from '../../models/restroom.model';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
-import { LucideAngularModule, PlusCircle, MapPin, Star, Trash2, Eye, CheckCircle, XCircle, ImageOff, Flag } from 'lucide-angular';
+import { LucideAngularModule, PlusCircle, MapPin, Star, Trash2, CheckCircle, XCircle, ImageOff, Flag, ArrowRight } from 'lucide-angular';
 
 @Component({
   selector: 'app-added',
@@ -14,7 +14,7 @@ import { LucideAngularModule, PlusCircle, MapPin, Star, Trash2, Eye, CheckCircle
   imports: [RouterLink, CommonModule, LucideAngularModule],
   template: `
     <div class="min-h-screen bg-brand-50 pb-16 pt-8 animate-fade-in">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="app-page">
         
         <!-- Header -->
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
@@ -102,8 +102,9 @@ import { LucideAngularModule, PlusCircle, MapPin, Star, Trash2, Eye, CheckCircle
                 </div>
                 
                 <div class="mt-auto pt-5 border-t border-slate-100 flex gap-3">
-                  <a [routerLink]="['/restrooms', r._id]" class="flex-1 flex items-center justify-center gap-2 bg-brand-50 hover:bg-brand-main text-brand-700 hover:text-white font-black py-3 rounded-xl transition-all shadow-sm">
-                    <lucide-angular [img]="EyeIcon" [size]="16"></lucide-angular> View
+                  <a [routerLink]="['/restrooms', r._id]" class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-brand-main px-4 py-3 text-sm font-black text-white shadow-sm transition-all hover:bg-brand-600 hover:shadow-md">
+                    View Restroom
+                    <lucide-angular [img]="ArrowRightIcon" [size]="16"></lucide-angular>
                   </a>
                   <button (click)="deleteRestroom(r._id!)" class="flex items-center justify-center px-4 bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 border-2 border-slate-100 hover:border-red-200 font-bold rounded-xl transition-all shadow-sm" title="Delete Contribution">
                     <lucide-angular [img]="Trash2Icon" [size]="18"></lucide-angular>
@@ -129,11 +130,11 @@ export class AddedComponent implements OnInit, OnDestroy {
   MapPinIcon = MapPin;
   StarIcon = Star;
   Trash2Icon = Trash2;
-  EyeIcon = Eye;
   CheckCircleIcon = CheckCircle;
   XCircleIcon = XCircle;
   ImageOffIcon = ImageOff;
   FlagIcon = Flag;
+  ArrowRightIcon = ArrowRight;
 
   restrooms: Restroom[] = [];
   statusMsg = '';

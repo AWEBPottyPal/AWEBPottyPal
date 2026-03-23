@@ -10,7 +10,7 @@ import { takeUntil } from 'rxjs/operators';
 import type * as L from 'leaflet';
 import { LucideAngularModule, AlertTriangle, ImagePlus, X, LocateFixed, Maximize, Minimize, Edit3, MapPin, CheckCircle, XCircle } from 'lucide-angular';
 
-const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
+const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
 
 @Component({
   selector: 'app-edit-restroom',
@@ -35,7 +35,7 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
   `],
   template: `
     <div class="min-h-screen bg-brand-50 pb-16 pt-8 animate-fade-in">
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="app-page-narrow">
         
         <div class="text-center mb-8">
           <div class="inline-flex items-center justify-center p-4 bg-brand-main text-white rounded-2xl shadow-soft mb-6 transform hover:scale-105 transition-transform">
