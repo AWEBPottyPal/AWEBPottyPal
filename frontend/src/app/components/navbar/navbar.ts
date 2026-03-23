@@ -15,8 +15,8 @@ import { CommonModule } from '@angular/common';
         <div class="flex justify-between h-16 items-center gap-6">
           <!-- Logo -->
           <a routerLink="/" class="flex-shrink-0 flex items-center gap-2.5 text-xl font-black text-white transition-colors group">
-            <div class="bg-white text-brand-main p-1.5 rounded-lg group-hover:bg-brand-50 transition-colors shadow-sm">
-              <lucide-angular [img]="MapPinIcon" [size]="20" [strokeWidth]="2.5"></lucide-angular>
+            <div class="text-brand-main p-1.5 rounded-lg transition-colors shadow-sm flex items-center justify-center">
+              <img src="/images/pottypal_logo.png" alt="PottyPal Logo" class="h-8 w-auto object-contain">
             </div>
             <span class="inline-block">PottyPal</span>
           </a>
