@@ -20,9 +20,8 @@ export class ApiService {
 
   private authHeaders(): HttpHeaders {
     const token = this.getToken();
-    console.log('[ApiService] Creating auth headers with token:', token ? 'Present' : 'Missing');
+    console.log('[ApiService] Creating auth headers with token:', token ? 'Present' : 'Missing (guest mode)');
     if (!token) {
-      console.error('[ApiService] NO TOKEN - request will fail 401');
       return new HttpHeaders();
     }
     return new HttpHeaders({ Authorization: `Bearer ${token}` });
@@ -81,13 +80,21 @@ export class ApiService {
     return this.http.patch(`${BASE_URL}/restrooms/${id}/save`, {}, { headers: this.authHeaders() });
   }
 
+  addRestroomPhoto(id: string, image: string): Observable<any> {
+    return this.http.patch(`${BASE_URL}/restrooms/${id}/photos`, { image }, { headers: this.authHeaders() });
+  }
+
+  removeRestroomPhoto(id: string, index: number): Observable<any> {
+    return this.http.patch(`${BASE_URL}/restrooms/${id}/photos/${index}/remove`, {}, { headers: this.authHeaders() });
+  }
+
   flagRestroom(id: string): Observable<any> {
     return this.http.patch(`${BASE_URL}/restrooms/${id}/flag`, {}, { headers: this.authHeaders() });
   }
 
   // ─── Reviews ─────────────────────────────────────────────────────────────────
-  addReview(restroomId: string, rating: number, comment: string): Observable<any> {
-    return this.http.post(`${BASE_URL}/reviews`, { restroomId, rating, comment }, { headers: this.authHeaders() });
+  addReview(restroomId: string, rating: number, comment: string, name?: string): Observable<any> {
+    return this.http.post(`${BASE_URL}/reviews`, { restroomId, rating, comment, name }, { headers: this.authHeaders() });
   }
 
   getReviews(restroomId: string): Observable<any> {

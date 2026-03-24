@@ -41,16 +41,7 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
             <lucide-angular [img]="MapPinIcon" [size]="180"></lucide-angular>
           </div>
 
-          @if (!auth.isLoggedIn()) {
-            <div class="bg-amber-50 border-2 border-amber-200 p-8 rounded-[1.5rem] text-center relative z-10 flex flex-col items-center">
-              <div class="bg-white p-3 rounded-full shadow-sm text-amber-500 mb-4">
-                <lucide-angular [img]="AlertTriangleIcon" [size]="32"></lucide-angular>
-              </div>
-              <p class="text-amber-800 font-bold text-lg">You must be logged in to add a restroom.</p>
-              <button (click)="goToAuth()" class="mt-6 bg-amber-500 text-white font-bold py-3 px-8 rounded-xl shadow-md hover:bg-amber-600 transition-colors hover:-translate-y-0.5">Let's Sign In</button>
-            </div>
-          } @else {
-            <div class="space-y-8 relative z-10">
+          <div class="space-y-8 relative z-10">
               <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_320px] gap-5 items-start">
                 <div class="bg-brand-50 border border-brand-100 rounded-[1.5rem] p-5 sm:p-6">
                   <div class="flex items-start gap-4">
@@ -267,7 +258,6 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
                 </div>
               </div>
             </div>
-          }
         </div>
       </div>
     </div>
@@ -350,10 +340,6 @@ export class AddRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  goToAuth() {
-    this.router.navigate(['/auth']);
   }
 
   onFilesSelected(event: any) {

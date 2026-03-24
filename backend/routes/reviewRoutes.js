@@ -4,18 +4,22 @@ import User from "../models/User.js";
 import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
+const GUEST_USER_ID = "000000000000000000000001";
 
 // @route   POST /api/reviews
 // @desc    Add a review for a restroom
 // @access  Private
 router.post("/", protect, async (req, res) => {
   console.log("[POST /api/reviews] Review by user:", req.user._id, "for restroom:", req.body.restroomId);
-  const { restroomId, rating, comment } = req.body;
+  const { restroomId, rating, comment, name } = req.body;
 
   try {
-    const existingReview = await Review.findOne({ restroom: restroomId, user: req.user._id });
-    if (existingReview) {
-      return res.status(400).json({ message: "You have already reviewed this restroom." });
+    const isGuestUser = req.user?._id?.toString() === GUEST_USER_ID;
+    if (!isGuestUser) {
+      const existingReview = await Review.findOne({ restroom: restroomId, user: req.user._id });
+      if (existingReview) {
+        return res.status(400).json({ message: "You have already reviewed this restroom." });
+      }
     }
 
     const review = await Review.create({
@@ -23,6 +27,7 @@ router.post("/", protect, async (req, res) => {
       user: req.user._id,
       rating,
       comment,
+      displayName: typeof name === "string" && name.trim() ? name.trim() : "Guest",
     });
 
     await User.findByIdAndUpdate(req.user._id, {

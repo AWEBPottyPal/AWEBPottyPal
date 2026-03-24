@@ -1,5 +1,12 @@
 import { Injectable, signal } from '@angular/core';
 
+const GUEST_USER = {
+  _id: '000000000000000000000001',
+  username: 'Guest',
+  email: 'guest@pottypal.local',
+  role: 'user',
+};
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   currentUser = signal<any>(null);
@@ -20,7 +27,12 @@ export class AuthService {
         } catch (e) {
           console.error('[AuthService] Failed to parse stored user:', e);
         }
+      } else {
+        localStorage.setItem('user', JSON.stringify(GUEST_USER));
+        this.currentUser.set(GUEST_USER);
       }
+    } else {
+      this.currentUser.set(GUEST_USER);
     }
   }
 
@@ -36,17 +48,12 @@ export class AuthService {
   }
 
   logout() {
-    console.log('[AuthService] Logout called');
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-    }
-    this.currentUser.set(null);
+    console.log('[AuthService] Logout ignored (guest mode)');
+    this.currentUser.set(GUEST_USER);
   }
 
   isLoggedIn(): boolean {
-    const hasToken = typeof localStorage !== 'undefined' && !!localStorage.getItem('token');
-    return hasToken;
+    return true;
   }
 
   getUserId(): string | null {

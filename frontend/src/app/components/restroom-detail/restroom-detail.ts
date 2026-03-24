@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, PLATFORM_ID, AfterViewInit } from '@angular/core';
 import { CommonModule, isPlatformBrowser, TitleCasePipe } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
@@ -15,7 +15,7 @@ import { RecentDatePipe } from '../../pipes/recent-date.pipe';
 @Component({
   selector: 'app-restroom-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, RecentDatePipe, TitleCasePipe],
+  imports: [CommonModule, FormsModule, LucideAngularModule, RecentDatePipe, TitleCasePipe],
   styles: [`
     .fullscreen-map {
       position: fixed !important;
@@ -229,16 +229,6 @@ import { RecentDatePipe } from '../../pipes/recent-date.pipe';
               </h3>
               <span class="bg-brand-50 text-brand-main px-3 py-1 rounded-full text-sm font-black shadow-sm">{{ reviews.length }} Review(s)</span>
             </div>
-    
-            @if (!auth.isLoggedIn()) {
-              <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[1.5rem] p-8 text-center text-slate-600 mb-8 flex flex-col items-center">
-                <div class="bg-white p-3 rounded-full shadow-sm mb-4">
-                  <lucide-angular [img]="UserIcon" [size]="28" class="text-slate-400"></lucide-angular>
-                </div>
-                <p class="text-base font-bold max-w-md mx-auto mb-5">Sign in to share your experience, save restrooms, and alert the community.</p>
-                <a routerLink="/auth" class="bg-brand-main text-white px-6 py-3 rounded-xl text-sm font-black shadow-premium hover:-translate-y-1 transition-all">Login / Signup</a>
-              </div>
-            }
     
             <!-- Add Review Form -->
             @if (auth.isLoggedIn() && !hasReviewed) {

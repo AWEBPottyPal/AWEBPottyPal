@@ -16,7 +16,38 @@ export class LocationService {
   userPos$ = this.userPosSubject.asObservable();
 
   private watchId?: number;
+  private hasInitializedLocation = false;
   public readonly HAU_COORDS: [number, number] = [15.1332, 120.5907];
+
+  constructor() {
+    this.initializeLocationOnStartup();
+  }
+
+  private initializeLocationOnStartup(): void {
+    if (this.hasInitializedLocation || !isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    this.hasInitializedLocation = true;
+
+    // Ask for location permission once on startup.
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          this.locationEnabledSubject.next(true);
+          this.userPosSubject.next({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          this.startTracking();
+        },
+        () => {
+          this.setDemoLocation();
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+      return;
+    }
+
+    this.setDemoLocation();
+  }
 
   toggleLocation(enabled: boolean): void {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -32,6 +63,12 @@ export class LocationService {
   private disableLocation(): void {
     this.stopTracking();
     this.userPosSubject.next(null);
+  }
+
+  private setDemoLocation(): void {
+    this.stopTracking();
+    this.locationEnabledSubject.next(false);
+    this.userPosSubject.next({ lat: this.HAU_COORDS[0], lng: this.HAU_COORDS[1] });
   }
 
   private startTracking(): void {

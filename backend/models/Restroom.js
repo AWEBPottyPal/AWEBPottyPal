@@ -17,7 +17,18 @@ const restroomSchema = new mongoose.Schema({
   },
   amenities: {
     type: [String],
-    enum: ["Bidet", "Soap", "Accessibility", "Child Friendly", "PWD Friendly"],
+    enum: [
+      "Bidet",
+      "Soap",
+      "Accessibility",
+      "Child Friendly",
+      "PWD Friendly",
+      "Tissue",
+      "Spacious",
+      "Clean",
+      "Lock",
+      "Changing Table",
+    ],
     default: [],
   },
   operatingHours: {

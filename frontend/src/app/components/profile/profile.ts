@@ -4,7 +4,7 @@ import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
-import { LucideAngularModule, UserCircle, Mail, ShieldCheck, CalendarDays, Bookmark, Flag, MessageSquare, PlusCircle, ChevronRight, LogOut } from 'lucide-angular';
+import { LucideAngularModule, UserCircle, Mail, ShieldCheck, CalendarDays, Bookmark, Flag, MessageSquare, PlusCircle, ChevronRight } from 'lucide-angular';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -14,12 +14,7 @@ import { CommonModule } from '@angular/common';
   template: `
     <div class="min-h-screen bg-brand-50 pb-16 pt-8 animate-fade-in">
       <div class="app-page">
-        @if (!auth.isLoggedIn()) {
-          <div class="bg-white p-10 rounded-[2.5rem] shadow-premium text-center border border-white">
-            <p class="text-xl font-bold text-slate-700 mb-6">Please sign in to view your profile.</p>
-            <a routerLink="/auth" class="inline-block bg-brand-main text-white font-bold py-3.5 px-8 rounded-xl shadow-premium hover:bg-brand-600 transition-all hover:-translate-y-1">Login / Sign Up</a>
-          </div>
-        } @else if (user) {
+        @if (user) {
           <div class="space-y-8">
             <section class="rounded-[2rem] border border-white bg-white/95 p-5 shadow-premium sm:p-6">
               <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
@@ -206,13 +201,6 @@ import { CommonModule } from '@angular/common';
               </section>
             </div>
 
-            <section class="rounded-[1.75rem] border border-white bg-white p-5 shadow-premium">
-              <h4 class="mb-4 text-xl font-black text-brand-dark">Account Actions</h4>
-              <button (click)="logout()" class="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-3.5 text-base font-black text-red-600 transition-colors hover:bg-red-100">
-                <lucide-angular [img]="LogOutIcon" [size]="18"></lucide-angular>
-                Sign Out
-              </button>
-            </section>
           </div>
           
         } @else {
@@ -241,7 +229,6 @@ export class ProfileComponent implements OnInit, OnDestroy {
   MessageSquareIcon = MessageSquare;
   PlusCircleIcon = PlusCircle;
   ChevronRightIcon = ChevronRight;
-  LogOutIcon = LogOut;
 
   user: any = null;
 
@@ -273,11 +260,6 @@ export class ProfileComponent implements OnInit, OnDestroy {
 
     const years = Math.max(1, Math.floor(days / 365));
     return years === 1 ? '1 year ago' : `${years} years ago`;
-  }
-
-  logout() {
-    this.auth.logout();
-    this.router.navigate(['/']);
   }
 
   ngOnInit() {

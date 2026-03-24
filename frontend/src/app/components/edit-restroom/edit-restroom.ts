@@ -51,16 +51,7 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
             <lucide-angular [img]="MapPinIcon" [size]="300"></lucide-angular>
           </div>
 
-          @if (!auth.isLoggedIn()) {
-            <div class="bg-amber-50 border-2 border-amber-200 p-8 rounded-[2rem] text-center relative z-10 flex flex-col items-center">
-              <div class="bg-white p-3 rounded-full shadow-sm text-amber-500 mb-4">
-                <lucide-angular [img]="AlertTriangleIcon" [size]="32"></lucide-angular>
-              </div>
-              <p class="text-amber-800 font-bold text-lg">You must be logged in to edit a restroom.</p>
-              <button (click)="goToAuth()" class="mt-6 bg-amber-500 text-white font-bold py-3 px-8 rounded-xl shadow-md hover:bg-amber-600 transition-colors hover:-translate-y-0.5">Go to Sign In</button>
-            </div>
-          } @else {
-            <div class="space-y-10 relative z-10">
+          <div class="space-y-10 relative z-10">
               
               <!-- Basic Info -->
               <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -217,7 +208,6 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
               </div>
               
             </div>
-          }
         </div>
       </div>
     </div>
@@ -303,10 +293,6 @@ export class EditRestroomComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  goToAuth() {
-    this.router.navigate(['/auth']);
   }
 
   fetchRestroom(id: string) {

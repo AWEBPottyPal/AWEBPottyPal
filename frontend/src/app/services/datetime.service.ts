@@ -17,13 +17,12 @@ export class DatetimeService {
     // Convert to Manila time via toLocaleString
     const phTimeStr = now.toLocaleString("en-US", {timeZone: "Asia/Manila"});
     const phTime = new Date(phTimeStr);
-    
-    const months = ["January", "February", "March", "April", "May", "June", 
-                    "July", "August", "September", "October", "November", "December"];
-    
-    const month = months[phTime.getMonth()];
-    const day = phTime.getDate();
-    const year = phTime.getFullYear();
+
+    const shortDate = phTime.toLocaleDateString('en-US', {
+      month: 'numeric',
+      day: 'numeric',
+      year: '2-digit',
+    });
     
     let hours = phTime.getHours();
     const minutes = phTime.getMinutes() < 10 ? '0' + phTime.getMinutes() : phTime.getMinutes();
@@ -31,6 +30,6 @@ export class DatetimeService {
     hours = hours % 12;
     hours = hours ? hours : 12; // '0' should be '12'
     
-    this.currentPHTime.set(`${month} ${day}, ${year} ${hours}:${minutes} ${ampm}`);
+    this.currentPHTime.set(`${shortDate} ${hours}:${minutes} ${ampm}`);
   }
 }

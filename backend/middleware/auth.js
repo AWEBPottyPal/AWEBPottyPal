@@ -1,6 +1,22 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
+const GUEST_USER_ID = "000000000000000000000001";
+
+const getOrCreateGuestUser = async () => {
+  let guest = await User.findById(GUEST_USER_ID).select("-password");
+  if (!guest) {
+    guest = await User.create({
+      _id: GUEST_USER_ID,
+      username: "Guest",
+      email: "guest@pottypal.local",
+      role: "user",
+      password: "",
+    });
+  }
+  return guest;
+};
+
 // Verify JWT and attach user to request
 const protect = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -8,8 +24,9 @@ const protect = async (req, res, next) => {
   console.log('[AUTH MIDDLEWARE] Authorization header present:', !!authHeader);
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    console.error('[AUTH MIDDLEWARE] BLOCKED: No/invalid auth header');
-    return res.status(401).json({ message: "Not authorized, no token" });
+    req.user = await getOrCreateGuestUser();
+    console.log('[AUTH MIDDLEWARE] No token provided, continuing as guest:', req.user._id);
+    return next();
   }
 
   const token = authHeader.split(" ")[1];
@@ -21,15 +38,17 @@ const protect = async (req, res, next) => {
     req.user = await User.findById(decoded.id).select("-password");
 
     if (!req.user) {
-      console.error('[AUTH MIDDLEWARE] BLOCKED: User not found in DB');
-      return res.status(401).json({ message: "User not found" });
+      req.user = await getOrCreateGuestUser();
+      console.log('[AUTH MIDDLEWARE] Token user not found, continuing as guest:', req.user._id);
+      return next();
     }
 
     console.log('[AUTH MIDDLEWARE] User attached:', req.user._id, 'role:', req.user.role);
     next();
   } catch (error) {
-    console.error('[AUTH MIDDLEWARE] Token error:', error.message);
-    return res.status(401).json({ message: "Token invalid or expired" });
+    console.error('[AUTH MIDDLEWARE] Token error, falling back to guest:', error.message);
+    req.user = await getOrCreateGuestUser();
+    return next();
   }
 };
 

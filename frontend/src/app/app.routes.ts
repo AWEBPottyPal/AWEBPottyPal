@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 import { HomeComponent } from './components/home/home';
-import { AuthComponent } from './components/auth/auth';
 import { RestroomDetailComponent } from './components/restroom-detail/restroom-detail';
 import { AddRestroomComponent } from './components/add-restroom/add-restroom';
 import { EditRestroomComponent } from './components/edit-restroom/edit-restroom';
@@ -15,7 +14,6 @@ import { FlaggedRestroomsComponent } from './components/flagged-restrooms/flagge
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
-  { path: 'auth', component: AuthComponent },
   { path: 'restrooms/:id', component: RestroomDetailComponent },
   { path: 'add-restroom', component: AddRestroomComponent },
   { path: 'edit-restroom/:id', component: EditRestroomComponent },

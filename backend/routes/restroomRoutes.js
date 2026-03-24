@@ -5,6 +5,7 @@ import Review from "../models/Review.js";
 import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
+const GUEST_USER_ID = "000000000000000000000001";
 
 const normalizeAmenity = (amenity) => {
   const map = {
@@ -41,6 +42,10 @@ const normalizeRestroomPayload = (restroom) => {
 router.post("/", protect, async (req, res) => {
   console.log("[POST /api/restrooms] Adding new restroom by user:", req.user._id);
   const { name, description, location, amenities, images, operatingHours } = req.body;
+
+  if (!Array.isArray(images) || images.length < 1) {
+    return res.status(400).json({ message: "At least 1 image is required" });
+  }
 
   try {
     const restroom = await Restroom.create({
@@ -171,17 +176,14 @@ router.put("/:id", protect, async (req, res) => {
     const restroom = await Restroom.findById(req.params.id);
     if (!restroom) return res.status(404).json({ message: "Restroom not found" });
 
-    const isOwner = restroom.createdBy.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === "admin";
-
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ message: "Not authorized to update this restroom" });
-    }
-
     const payload = {
       ...req.body,
       amenities: normalizeAmenities(req.body.amenities),
     };
+
+    if (Array.isArray(payload.images) && payload.images.length < 1) {
+      return res.status(400).json({ message: "At least 1 image is required" });
+    }
 
     const updated = await Restroom.findByIdAndUpdate(req.params.id, payload, {
       new: true,
@@ -197,20 +199,13 @@ router.put("/:id", protect, async (req, res) => {
 });
 
 // @route   DELETE /api/restrooms/:id
-// @desc    Delete restroom (creator or admin only)
+// @desc    Delete restroom
 // @access  Private
 router.delete("/:id", protect, async (req, res) => {
   console.log("[DELETE /api/restrooms/:id] Delete request for:", req.params.id);
   try {
     const restroom = await Restroom.findById(req.params.id);
     if (!restroom) return res.status(404).json({ message: "Restroom not found" });
-
-    const isOwner = restroom.createdBy.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === "admin";
-
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ message: "Not authorized to delete this restroom" });
-    }
 
     // delete the restroom
     await restroom.deleteOne();
@@ -358,6 +353,108 @@ router.patch("/:id/save", protect, async (req, res) => {
   } catch (error) {
     console.error("[PATCH /api/restrooms/:id/save] Error:", error.message, error.stack);
     res.status(500).json({ message: "Failed to save restroom", error: error.message });
+  }
+});
+
+// @route   PATCH /api/restrooms/:id/photos
+// @desc    Add a photo to a restroom
+// @access  Private
+router.patch("/:id/photos", protect, async (req, res) => {
+  console.log("[PATCH /api/restrooms/:id/photos] Add photo request for restroom:", req.params.id, "Auth user:", req.user?._id);
+  try {
+    const { image } = req.body;
+    if (typeof image !== "string" || !image.trim()) {
+      return res.status(400).json({ message: "Image is required" });
+    }
+
+    const restroom = await Restroom.findById(req.params.id);
+    if (!restroom) {
+      return res.status(404).json({ message: "Restroom not found" });
+    }
+
+    restroom.images = Array.isArray(restroom.images) ? restroom.images : [];
+    if (restroom.images.length >= 5) {
+      return res.status(400).json({ message: "Maximum 5 photos allowed" });
+    }
+
+    restroom.images.push(image.trim());
+    await restroom.save();
+
+    console.log("[PATCH /api/restrooms/:id/photos] Photo added. Total images:", restroom.images.length);
+    res.json(normalizeRestroomPayload(restroom));
+  } catch (error) {
+    console.error("[PATCH /api/restrooms/:id/photos] Error:", error.message);
+    res.status(500).json({ message: "Failed to upload photo", error: error.message });
+  }
+});
+
+// @route   DELETE /api/restrooms/:id/photos/:index
+// @desc    Remove a photo from a restroom by index
+// @access  Private
+router.delete("/:id/photos/:index", protect, async (req, res) => {
+  console.log("[DELETE /api/restrooms/:id/photos/:index] Remove photo request for restroom:", req.params.id, "index:", req.params.index, "Auth user:", req.user?._id);
+  try {
+    const index = Number(req.params.index);
+    if (!Number.isInteger(index) || index < 0) {
+      return res.status(400).json({ message: "Invalid photo index" });
+    }
+
+    const restroom = await Restroom.findById(req.params.id);
+    if (!restroom) {
+      return res.status(404).json({ message: "Restroom not found" });
+    }
+
+    restroom.images = Array.isArray(restroom.images) ? restroom.images : [];
+    if (index >= restroom.images.length) {
+      return res.status(400).json({ message: "Photo index out of range" });
+    }
+    if (restroom.images.length <= 1) {
+      return res.status(400).json({ message: "At least 1 photo is required" });
+    }
+
+    restroom.images.splice(index, 1);
+    await restroom.save();
+
+    console.log("[DELETE /api/restrooms/:id/photos/:index] Photo removed. Total images:", restroom.images.length);
+    res.json(normalizeRestroomPayload(restroom));
+  } catch (error) {
+    console.error("[DELETE /api/restrooms/:id/photos/:index] Error:", error.message);
+    res.status(500).json({ message: "Failed to remove photo", error: error.message });
+  }
+});
+
+// @route   PATCH /api/restrooms/:id/photos/:index/remove
+// @desc    Remove a photo from a restroom by index (PATCH variant for clients with DELETE restrictions)
+// @access  Private
+router.patch("/:id/photos/:index/remove", protect, async (req, res) => {
+  console.log("[PATCH /api/restrooms/:id/photos/:index/remove] Remove photo request for restroom:", req.params.id, "index:", req.params.index, "Auth user:", req.user?._id);
+  try {
+    const index = Number(req.params.index);
+    if (!Number.isInteger(index) || index < 0) {
+      return res.status(400).json({ message: "Invalid photo index" });
+    }
+
+    const restroom = await Restroom.findById(req.params.id);
+    if (!restroom) {
+      return res.status(404).json({ message: "Restroom not found" });
+    }
+
+    restroom.images = Array.isArray(restroom.images) ? restroom.images : [];
+    if (index >= restroom.images.length) {
+      return res.status(400).json({ message: "Photo index out of range" });
+    }
+    if (restroom.images.length <= 1) {
+      return res.status(400).json({ message: "At least 1 photo is required" });
+    }
+
+    restroom.images.splice(index, 1);
+    await restroom.save();
+
+    console.log("[PATCH /api/restrooms/:id/photos/:index/remove] Photo removed. Total images:", restroom.images.length);
+    res.json(normalizeRestroomPayload(restroom));
+  } catch (error) {
+    console.error("[PATCH /api/restrooms/:id/photos/:index/remove] Error:", error.message);
+    res.status(500).json({ message: "Failed to remove photo", error: error.message });
   }
 });
 

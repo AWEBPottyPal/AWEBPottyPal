@@ -21,6 +21,11 @@ const reviewSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  displayName: {
+    type: String,
+    trim: true,
+    default: "Guest",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

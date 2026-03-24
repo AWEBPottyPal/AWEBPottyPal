@@ -72,12 +72,19 @@ router.post("/login", async (req, res) => {
 
 // @route   GET /api/users/profile/:id
 // @desc    Get user profile
-// @access  Private
-router.get("/profile/:id", protect, async (req, res) => {
+// @access  Public
+router.get("/profile/:id", async (req, res) => {
   console.log("[GET /api/users/profile/:id] Fetching profile for:", req.params.id);
   try {
     const user = await User.findById(req.params.id).select("-password");
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.json({
+        _id: req.params.id,
+        username: "Guest",
+        email: "guest@pottypal.local",
+        role: "user",
+      });
+    }
     res.json(user);
   } catch (error) {
     console.error("[GET /api/users/profile/:id] Error:", error.message);
@@ -87,12 +94,12 @@ router.get("/profile/:id", protect, async (req, res) => {
 
 // @route   GET /api/users/saved-restrooms/:id
 // @desc    Get user's saved restrooms
-// @access  Private
-router.get("/saved-restrooms/:id", protect, async (req, res) => {
-  console.log("[GET /api/users/saved-restrooms/:id] Fetching for user:", req.params.id, "Auth user:", req.user._id);
+// @access  Public
+router.get("/saved-restrooms/:id", async (req, res) => {
+  console.log("[GET /api/users/saved-restrooms/:id] Fetching for user:", req.params.id);
   try {
     const user = await User.findById(req.params.id).populate("savedRestrooms");
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.json([]);
     console.log("[GET /api/users/saved-restrooms/:id] Count:", user.savedRestrooms.length, "Data:", user.savedRestrooms);
     res.json(user.savedRestrooms);
   } catch (error) {
@@ -103,12 +110,12 @@ router.get("/saved-restrooms/:id", protect, async (req, res) => {
 
 // @route   GET /api/users/flagged-restrooms/:id
 // @desc    Get user's flagged restrooms
-// @access  Private
-router.get("/flagged-restrooms/:id", protect, async (req, res) => {
-  console.log("[GET /api/users/flagged-restrooms/:id] Fetching for user:", req.params.id, "Auth user:", req.user._id);
+// @access  Public
+router.get("/flagged-restrooms/:id", async (req, res) => {
+  console.log("[GET /api/users/flagged-restrooms/:id] Fetching for user:", req.params.id);
   try {
     const user = await User.findById(req.params.id).populate("flaggedRestrooms");
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.json([]);
     console.log("[GET /api/users/flagged-restrooms/:id] Count:", user.flaggedRestrooms.length, "Data:", user.flaggedRestrooms);
     res.json(user.flaggedRestrooms);
   } catch (error) {
@@ -119,12 +126,11 @@ router.get("/flagged-restrooms/:id", protect, async (req, res) => {
 
 // @route   GET /api/users/reviewed-restrooms/:id
 // @desc    Get user's reviewed restrooms and review comments
-// @access  Private
-router.get("/reviewed-restrooms/:id", protect, async (req, res) => {
-  console.log("[GET /api/users/reviewed-restrooms/:id] Fetching for user:", req.params.id, "Auth user:", req.user._id);
+// @access  Public
+router.get("/reviewed-restrooms/:id", async (req, res) => {
+  console.log("[GET /api/users/reviewed-restrooms/:id] Fetching for user:", req.params.id);
   try {
     const reviews = await Review.find({ user: req.params.id }).populate("restroom");
-    if (!reviews) return res.status(404).json({ message: "Reviews not found" });
     console.log("[GET /api/users/reviewed-restrooms/:id] Count:", reviews.length);
     res.json(reviews);
   } catch (error) {
