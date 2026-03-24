@@ -39,7 +39,7 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
   template: `
     <app-loading-modal [visible]="isLoading"></app-loading-modal>
     <div class="bg-brand-50 w-full min-h-screen pb-10 pt-6 animate-fade-in font-sans">
-      <div class="app-page flex flex-col h-[calc(100vh-4rem)] min-h-[800px]">
+      <div class="app-page flex flex-col h-[calc(100vh-4rem)]">
         
         <div class="mb-6 shrink-0 rounded-[2rem] border border-slate-100 bg-white/95 p-5 shadow-soft">
           <!-- Header & Top Controls -->
@@ -119,8 +119,8 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
         <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
           
           <!-- Left Column: Available Restrooms List -->
-          <div class="w-full lg:w-[420px] xl:w-[480px] bg-transparent flex flex-col h-full shrink-0">
-            <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar flex flex-col gap-4 pb-4 h-full relative">
+          <div class="w-full lg:w-[420px] xl:w-[480px] bg-transparent flex flex-col shrink-0 min-h-0 max-h-full overflow-hidden">
+            <div class="overflow-y-auto pr-2 custom-scrollbar flex flex-col gap-4 pb-4">
               
               @if (filteredRestrooms.length === 0 && !statusMsg) {
                 <div class="flex flex-col items-center justify-center h-48 bg-white rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 p-6 text-center">
@@ -131,11 +131,11 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
               }
               
               @for (r of filteredRestrooms; track r._id; let i = $index) {
-                <div class="group flex flex-row bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-premium hover:border-[#818CF8]/30 hover:scale-[1.01] transition-all duration-300 relative animate-fade-in-up" [style.animation-delay]="(i * 40) + 'ms'">
+                <div class="group flex flex-col sm:flex-row bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-premium hover:border-[#818CF8]/30 hover:scale-[1.01] transition-all duration-300 relative animate-fade-in-up" [style.animation-delay]="(i * 40) + 'ms'">
                   
-                  <!-- Left Side Image + CTA -->
-                  <div class="m-2 sm:m-3 w-24 sm:w-[132px] shrink-0 flex flex-col gap-2">
-                    <div class="relative h-24 sm:h-[132px] w-full rounded-xl sm:rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 shadow-sm">
+                  <!-- Top/Left: Image + CTA -->
+                  <div class="flex flex-row sm:flex-col sm:w-[140px] sm:shrink-0 sm:m-3 gap-3 p-3 sm:p-0">
+                    <div class="relative w-[100px] h-[100px] sm:w-full sm:h-[132px] shrink-0 rounded-xl sm:rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 shadow-sm">
                       @if (r.images && r.images.length > 0) {
                         <img [src]="r.images[0]" alt="Cover" class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
                         <div class="absolute inset-0 bg-black/10 pointer-events-none"></div>
@@ -144,8 +144,7 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
                           <span class="text-sm font-black tracking-widest text-[#2563EB] opacity-90 italic">Potty Pal</span>
                         </div>
                       }
-                      
-                      <!-- Open/Close Badge overlay -->
+                      <!-- Open/Close dot -->
                       <div class="absolute top-2 left-2">
                         @if (isRestroomOpenNow(r)) {
                           <div class="w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" title="Open Now"></div>
@@ -154,49 +153,54 @@ const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
                         }
                       </div>
                     </div>
-
-                    <a [routerLink]="['/restrooms', r._id]" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-brand-main px-2 py-2 text-xs font-black text-white shadow-sm transition-all hover:bg-brand-600 hover:shadow-md">
-                      View Restroom
-                      <lucide-angular [img]="ArrowRightIcon" [size]="12"></lucide-angular>
-                    </a>
+                    <!-- CTA sits next to image on mobile, below image on sm+ -->
+                    <div class="flex items-end sm:items-stretch flex-1 sm:flex-none">
+                      <a [routerLink]="['/restrooms', r._id]" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-brand-main px-3 py-2 text-xs font-black text-white shadow-sm transition-all hover:bg-brand-600 hover:shadow-md whitespace-nowrap">
+                        View Restroom
+                        <lucide-angular [img]="ArrowRightIcon" [size]="12"></lucide-angular>
+                      </a>
+                    </div>
                   </div>
                   
-                  <!-- Right Side Details -->
-                  <div class="p-3 sm:p-4 flex flex-col flex-1 min-w-0 justify-center gap-2 sm:gap-3">
+                  <!-- Details -->
+                  <div class="px-4 pb-4 pt-2 sm:pt-4 sm:pl-1 sm:pr-4 flex flex-col min-w-0 gap-2 flex-1">
+                    <!-- Name + Rating -->
                     <div class="flex items-start justify-between gap-2">
-                      <h4 class="min-w-0 flex-1 text-sm sm:text-lg font-black text-[#1E3A8A] leading-snug hover:text-[#2563EB] transition-colors line-clamp-2"><a [routerLink]="['/restrooms', r._id]">{{ r.name }}</a></h4>
+                      <h4 class="min-w-0 flex-1 text-base sm:text-lg font-black text-[#1E3A8A] leading-snug hover:text-[#2563EB] transition-colors">
+                        <a [routerLink]="['/restrooms', r._id]">{{ r.name }}</a>
+                      </h4>
                       @if (r.averageRating) {
                         <span class="bg-amber-50 text-amber-600 text-xs font-black px-2 py-1 rounded-lg flex items-center gap-1 shrink-0 shadow-sm self-start">
-                           ★ {{ r.averageRating | number:'1.1-1' }}
+                          ★ {{ r.averageRating | number:'1.1-1' }}
                         </span>
                       }
                     </div>
                     
-                    <div class="flex items-center gap-2 flex-wrap">
+                    <!-- Status + Address -->
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                       @if (isRestroomOpenNow(r)) {
-                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] sm:text-xs font-black uppercase tracking-wide text-emerald-700">Open</span>
+                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-700 shrink-0">Open</span>
                       } @else {
-                        <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] sm:text-xs font-black uppercase tracking-wide text-red-700">Closed</span>
+                        <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700 shrink-0">Closed</span>
                       }
-                    
-                      <p class="text-xs font-semibold text-slate-500 flex items-center gap-1 min-w-0 leading-relaxed flex-1">
+                      <p class="text-xs font-semibold text-slate-500 flex items-center gap-1 break-all leading-relaxed">
                         <lucide-angular [img]="MapPinIcon" [size]="12" class="text-slate-400 shrink-0"></lucide-angular>
-                        <span class="line-clamp-1 sm:line-clamp-2">Addr: {{r.location?.latitude | number:'1.2-2'}}, {{r.location?.longitude | number:'1.2-2'}}</span>
+                        Addr: {{r.location?.latitude | number:'1.2-2'}}, {{r.location?.longitude | number:'1.2-2'}}
                       </p>
                     </div>
+
+                    <!-- Description -->
+                    @if (r.description) {
+                      <p class="text-xs text-slate-500 leading-relaxed">
+                        {{ r.description }}
+                      </p>
+                    }
                     
-                    <div class="min-h-[2rem] text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                      {{ r.description || 'No description provided.' }}
-                    </div>
-                    
-                    <!-- Amenities Mini Tags -->
-                    <div class="flex flex-wrap gap-1 mt-0.5">
+                    <!-- Amenities -->
+                    <div class="flex flex-wrap gap-1 pt-0.5">
                       @if (r.amenities && r.amenities.length) {
-                        @for (am of r.amenities.slice(0,3); track am) {
-                           <span class="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">{{ am }}</span>
-                        }
-                        @if (r.amenities.length > 3) {
-                          <span class="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">+{{ r.amenities.length - 3 }}</span>
+                        @for (am of r.amenities; track am) {
+                          <span class="bg-indigo-50 text-indigo-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{{ am }}</span>
                         }
                       } @else {
                         <span class="text-slate-300 text-xs italic">No amenities</span>
