@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, PLATFORM_ID, AfterViewInit } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { CommonModule, isPlatformBrowser, TitleCasePipe } from '@angular/common';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
@@ -9,11 +9,13 @@ import { Restroom } from '../../models/restroom.model';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import type * as L from 'leaflet';
+import { LucideAngularModule, Flag, Star, Trash2, Edit3, Bookmark, CheckCircle, Navigation, MapPin, User, LocateFixed, Maximize, Minimize, CheckSquare, XCircle, Info, MessageSquare } from 'lucide-angular';
+import { RecentDatePipe } from '../../pipes/recent-date.pipe';
 
 @Component({
   selector: 'app-restroom-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule, RecentDatePipe, TitleCasePipe],
   styles: [`
     .fullscreen-map {
       position: fixed !important;
@@ -25,144 +27,347 @@ import type * as L from 'leaflet';
       border-radius: 0 !important;
     }
     .osm-custom-tiles {
-      filter: saturate(0.6) brightness(1.05) contrast(1.05) hue-rotate(-10deg);
+      filter: saturate(0.8) brightness(1.02) contrast(1.05) hue-rotate(-10deg);
     }
   `],
   template: `
-    <h2>Restroom Detail</h2>
-    @if (restroom) {
-      <div style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
-        <h3 style="margin-top: 0; font-size: 1.5em; color: #333;">{{ restroom.name }}</h3>
-        
-        @if (restroom.images && restroom.images.length > 0) {
-          <div style="margin-bottom: 15px; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;">
-            @for (img of restroom.images; track $index) {
-              <img [src]="img" alt="Restroom photo" style="max-height: 300px; min-width: 250px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />
+    <div class="bg-brand-50 w-full min-h-screen pb-12 pt-6 animate-fade-in">
+      <div class="app-page">
+      
+        <!-- Loading State -->
+        @if (!restroom) {
+          <div class="flex flex-col items-center justify-center py-32 text-slate-400 bg-white rounded-[2rem] shadow-soft mt-8 cursor-wait">
+            <div class="animate-spin rounded-full h-16 w-16 border-4 border-brand-100 border-t-brand-main mb-6"></div>
+            <p class="font-bold text-lg animate-pulse text-brand-dark">Loading beautiful details...</p>
+          </div>
+        } @else {
+          
+          <!-- Header & Action Ribbon -->
+          <div class="bg-white rounded-[1.5rem] p-5 sm:p-7 shadow-soft mb-6 border border-white relative overflow-hidden">
+            <div class="absolute -right-8 -top-8 text-brand-50 opacity-50 z-0 pointer-events-none transform rotate-12">
+              <lucide-angular [img]="MapPinIcon" [size]="150"></lucide-angular>
+            </div>
+            
+            <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+              <div>
+                <div class="flex flex-wrap items-center gap-2.5 mb-2">
+                  <h2 class="text-2xl md:text-3xl font-extrabold text-brand-dark tracking-tight leading-tight">{{ restroom.name }}</h2>
+                  @if (restroom.isFlagged) {
+                    <span class="bg-red-50 text-red-600 border border-red-200 font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-sm">
+                      <lucide-angular [img]="FlagIcon" [size]="12"></lucide-angular> Flagged
+                    </span>
+                  }
+                </div>
+                <div class="flex flex-wrap items-center gap-3 text-slate-600 font-bold bg-slate-50 inline-flex px-3 py-1.5 rounded-lg border border-slate-100 text-sm">
+                  <span class="flex items-center gap-1.5 text-amber-500 bg-white px-2.5 py-1 rounded-lg shadow-sm">
+                    <lucide-angular [img]="StarIcon" [size]="15" class="fill-amber-500"></lucide-angular>
+                    {{ restroom.averageRating ? (restroom.averageRating | number:'1.1-1') : 'New' }}
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    <lucide-angular [img]="MessageSquareIcon" [size]="14" class="text-brand-main"></lucide-angular>
+                    {{ reviews.length }} Review(s)
+                  </span>
+                </div>
+              </div>
+      
+              <!-- Action Buttons -->
+              <div class="flex flex-wrap items-center gap-2.5">
+                @if (auth.isLoggedIn()) {
+                  <button (click)="isSaved ? unsave() : save()" 
+                    class="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-extrabold rounded-xl transition-all shadow-sm group"
+                    [ngClass]="isSaved ? 'bg-brand-main text-white hover:bg-brand-600 shadow-premium' : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-brand-300 hover:text-brand-main'">
+                    <lucide-angular [img]="BookmarkIcon" [size]="16" [class.fill-white]="isSaved" class="group-hover:scale-110 transition-transform"></lucide-angular>
+                    {{ isSaved ? 'Saved' : 'Save' }}
+                  </button>
+                  
+                  <button (click)="isFlagged ? unflag() : flag()"
+                    class="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-extrabold rounded-xl transition-all shadow-sm group"
+                    [ngClass]="isFlagged ? 'bg-red-50 text-red-600 border-2 border-red-200 hover:bg-red-100' : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-red-300 hover:text-red-500'">
+                    <lucide-angular [img]="FlagIcon" [size]="16" [class.fill-red-600]="isFlagged" class="group-hover:scale-110 transition-transform"></lucide-angular>
+                    {{ isFlagged ? 'Flagged' : 'Report' }}
+                  </button>
+      
+                  @if (canDeleteRestroom()) {
+                    <div class="h-7 w-px bg-slate-200 hidden md:block mx-1"></div>
+                    <button (click)="editRestroom()" class="flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-amber-50 hover:bg-amber-100 text-amber-700 border-2 border-amber-200 font-extrabold rounded-xl shadow-sm transition-colors">
+                      <lucide-angular [img]="Edit3Icon" [size]="16"></lucide-angular> Edit
+                    </button>
+                    <button (click)="deleteRestroom()" class="flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-red-50 hover:bg-red-100 text-red-700 border-2 border-red-200 font-extrabold rounded-xl shadow-sm transition-colors">
+                      <lucide-angular [img]="Trash2Icon" [size]="16"></lucide-angular> Delete
+                    </button>
+                  }
+                }
+              </div>
+            </div>
+          </div>
+          
+          @if (actionMsg) {
+            <div class="mb-6 p-3.5 rounded-xl text-sm font-bold flex items-center gap-3 shadow-sm animate-fade-in-up" 
+                 [ngClass]="actionMsg.includes('❌') ? 'bg-red-50 text-red-700 border-2 border-red-200' : 'bg-green-50 text-green-700 border-2 border-green-200'">
+              <lucide-angular [img]="actionMsg.includes('❌') ? XCircleIcon : CheckCircleIcon" [size]="18"></lucide-angular>
+              {{ actionMsg }}
+            </div>
+          }
+    
+          <!-- Photo Gallery -->
+          @if (restroom.images && restroom.images.length > 0) {
+            <div class="mb-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              @for (img of restroom.images; track $index) {
+                <div class="group overflow-hidden rounded-[1.5rem] shadow-soft relative bg-slate-200 h-[220px] sm:h-[260px] xl:h-[280px]">
+                  <img [src]="img" alt="Restroom photo" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                  <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/50 to-transparent pointer-events-none"></div>
+                </div>
+              }
+            </div>
+          }
+    
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
+            
+            <!-- Left Column: Info & Directions -->
+            <div class="lg:col-span-4 space-y-6">
+              
+              <!-- Description Card -->
+              <div class="bg-white p-5 sm:p-6 rounded-[1.5rem] shadow-soft border border-white hover:shadow-premium transition-shadow">
+                <div class="flex items-center gap-2 mb-3">
+                  <lucide-angular [img]="InfoIcon" [size]="18" class="text-brand-main"></lucide-angular>
+                  <h4 class="text-sm font-black text-brand-dark uppercase tracking-widest">About</h4>
+                </div>
+                <p class="text-slate-600 leading-relaxed font-medium text-sm sm:text-[15px]">{{ restroom.description || 'No description available for this location.' }}</p>
+                
+                <div class="mt-6">
+                  <div class="flex items-center gap-2 mb-3">
+                    <lucide-angular [img]="CheckSquareIcon" [size]="18" class="text-brand-main"></lucide-angular>
+                    <h4 class="text-sm font-black text-brand-dark uppercase tracking-widest">Amenities</h4>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    @if (restroom.amenities?.length) {
+                      @for (a of restroom.amenities; track a) {
+                        <span class="bg-brand-50 text-brand-800 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold shadow-sm">{{ a | titlecase }}</span>
+                      }
+                    } @else {
+                      <span class="text-slate-400 italic text-sm font-medium px-1">None listed</span>
+                    }
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Directions Widget -->
+              <div class="bg-white p-5 sm:p-6 rounded-[1.5rem] shadow-soft border border-white relative overflow-hidden">
+                <div class="absolute -right-8 -bottom-8 opacity-5 text-brand-main pointer-events-none">
+                  <lucide-angular [img]="NavigationIcon" [size]="120"></lucide-angular>
+                </div>
+                
+                <h4 class="text-xl font-black text-brand-dark mb-4 relative z-10">Get Directions</h4>
+                
+                <div class="flex gap-2.5 mb-5 bg-slate-50 p-2 rounded-xl border border-slate-100 relative z-10">
+                  <label class="flex-1 text-center cursor-pointer">
+                    <input type="radio" name="profile" value="driving-car" [(ngModel)]="transportProfile" class="peer hidden">
+                    <div class="py-2.5 px-3 rounded-lg text-sm font-bold transition-all"
+                      [ngClass]="transportProfile === 'driving-car' ? 'bg-white shadow-soft text-brand-main ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'">
+                      Drive
+                    </div>
+                  </label>
+                  <label class="flex-1 text-center cursor-pointer">
+                    <input type="radio" name="profile" value="foot-walking" [(ngModel)]="transportProfile" class="peer hidden">
+                    <div class="py-2.5 px-3 rounded-lg text-sm font-bold transition-all"
+                      [ngClass]="transportProfile === 'foot-walking' ? 'bg-white shadow-soft text-green-600 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'">
+                      Walk
+                    </div>
+                  </label>
+                </div>
+                
+                <button (click)="getDirections()" class="w-full flex justify-center items-center gap-2 py-3 bg-brand-main hover:bg-brand-600 text-white text-sm font-black rounded-xl shadow-premium hover:-translate-y-1 transition-all mb-3 relative z-10">
+                  <lucide-angular [img]="NavigationIcon" [size]="16"></lucide-angular>
+                  Calculate Route
+                </button>
+                
+                @if (routeInfo) {
+                  <div class="text-sm rounded-xl p-3 text-center font-bold shadow-sm relative z-10 animate-fade-in"
+                     [ngClass]="routeInfo.includes('❌') ? 'bg-red-50 text-red-600 ring-1 ring-red-200' : 'bg-green-50 text-green-700 ring-1 ring-green-200'">
+                    {{ routeInfo }}
+                  </div>
+                }
+              </div>
+              
+            </div>
+    
+            <!-- Right Column: Interactive Map -->
+            <div class="lg:col-span-8">
+              <div id="detail-map-container" class="bg-white p-2.5 rounded-[1.75rem] shadow-soft border-2 border-white relative group overflow-hidden h-full min-h-[400px] sm:min-h-[460px]">
+                <!-- Map Toolbar -->
+                <div class="absolute top-4 right-4 z-[400] flex gap-2">
+                  <button (click)="recenterMap()" class="bg-white/95 backdrop-blur text-brand-dark hover:text-brand-main px-3 py-2 rounded-xl shadow-floating border border-slate-100 text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 hover:scale-105 pointer-events-auto">
+                    <lucide-angular [img]="LocateFixedIcon" [size]="14"></lucide-angular> Recenter
+                  </button>
+                  @if (!isFullscreen) {
+                    <button (click)="toggleFullscreen()" class="bg-slate-800/95 backdrop-blur text-white hover:bg-black px-3 py-2 rounded-xl shadow-floating border border-slate-700 text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 hover:scale-105 pointer-events-auto">
+                      <lucide-angular [img]="MaximizeIcon" [size]="14"></lucide-angular> Expand
+                    </button>
+                  }
+                </div>
+                
+                <div id="detail-map" class="h-full w-full rounded-[1.25rem] z-0 transition-all duration-300 bg-slate-100"></div>
+                
+                @if (isFullscreen) {
+                  <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000]">
+                    <button (click)="toggleFullscreen()" class="flex items-center gap-2 px-6 py-3 text-sm font-black bg-slate-900 text-white rounded-full shadow-2xl hover:bg-slate-800 transition-all border-2 border-slate-700/50 hover:scale-105 pointer-events-auto animate-fade-in-up">
+                      <lucide-angular [img]="MinimizeIcon" [size]="18"></lucide-angular> Exit Full Screen
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+    
+          </div>
+    
+          <!-- Reviews Section -->
+          <div class="bg-white rounded-[1.75rem] p-5 sm:p-7 shadow-soft border border-white">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-7 gap-3 border-b border-slate-100 pb-5">
+              <h3 class="text-2xl font-black text-brand-dark flex items-center gap-2.5">
+                <lucide-angular [img]="MessageSquareIcon" [size]="22" class="text-brand-main"></lucide-angular>
+                Community Reviews
+              </h3>
+              <span class="bg-brand-50 text-brand-main px-3 py-1 rounded-full text-sm font-black shadow-sm">{{ reviews.length }} Review(s)</span>
+            </div>
+    
+            @if (!auth.isLoggedIn()) {
+              <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[1.5rem] p-8 text-center text-slate-600 mb-8 flex flex-col items-center">
+                <div class="bg-white p-3 rounded-full shadow-sm mb-4">
+                  <lucide-angular [img]="UserIcon" [size]="28" class="text-slate-400"></lucide-angular>
+                </div>
+                <p class="text-base font-bold max-w-md mx-auto mb-5">Sign in to share your experience, save restrooms, and alert the community.</p>
+                <a routerLink="/auth" class="bg-brand-main text-white px-6 py-3 rounded-xl text-sm font-black shadow-premium hover:-translate-y-1 transition-all">Login / Signup</a>
+              </div>
             }
+    
+            <!-- Add Review Form -->
+            @if (auth.isLoggedIn() && !hasReviewed) {
+              <div class="bg-brand-50 rounded-[1.5rem] border-2 border-brand-100 p-5 sm:p-6 mb-8 shadow-inner">
+                <h4 class="text-xl font-black text-brand-dark mb-5 flex items-center gap-2">Rate your visit</h4>
+                
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                  <!-- Rating Select -->
+                  <div class="md:col-span-4 lg:col-span-3 bg-white p-5 rounded-xl shadow-sm border border-brand-100 flex flex-col justify-center">
+                    <label class="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Select Rating</label>
+                    <div class="flex items-center gap-3">
+                      <input type="range" min="1" max="5" step="1" [(ngModel)]="rating" class="w-full accent-amber-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                      <div class="bg-amber-50 text-amber-600 font-black text-xl w-11 h-11 flex items-center justify-center rounded-xl shadow-sm border-2 border-amber-200 shrink-0">
+                        {{ rating }}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Comment Input -->
+                  <div class="md:col-span-8 lg:col-span-9 bg-white p-5 rounded-xl shadow-sm border border-brand-100">
+                    <label class="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Write a Review <span class="text-slate-400 font-medium normal-case">(Optional)</span></label>
+                    <textarea [(ngModel)]="comment" rows="3" placeholder="Was it clean? Was there soap? Share your experience with the community." class="w-full rounded-xl border-slate-200 bg-slate-50 shadow-inner focus:border-brand-main focus:ring-2 focus:ring-brand-main focus:bg-white text-sm p-3.5 transition-all resize-none"></textarea>
+                  </div>
+                </div>
+                
+                <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 pt-5 border-t border-brand-200 border-dashed">
+                  <p class="text-sm font-bold flex items-center gap-2" [ngClass]="reviewMsg.includes('❌') ? 'text-red-500' : 'text-green-600'">
+                    @if(reviewMsg) { <lucide-angular [img]="reviewMsg.includes('❌') ? XCircleIcon : CheckCircleIcon" [size]="18"></lucide-angular> }
+                    {{ reviewMsg }}
+                  </p>
+                  <button (click)="submitReview()" class="w-full sm:w-auto px-7 py-3 bg-brand-main hover:bg-brand-600 text-white text-sm font-black rounded-xl shadow-premium hover:-translate-y-1 transition-all flex items-center justify-center gap-2">
+                    Post Review
+                  </button>
+                </div>
+              </div>
+            } @else if (auth.isLoggedIn() && hasReviewed) {
+               <div class="bg-green-50 p-5 rounded-[1.5rem] border-2 border-green-200 text-green-800 font-bold flex flex-col sm:flex-row items-center justify-center gap-4 mb-8 shadow-sm text-center">
+                 <div class="bg-white p-2 rounded-full shadow-sm text-green-500 shrink-0">
+                   <lucide-angular [img]="CheckCircleIcon" [size]="20"></lucide-angular>
+                 </div>
+                 <span class="text-sm sm:text-base">You have already reviewed this restroom. Your review is displayed below.</span>
+               </div>
+            }
+    
+            <!-- Review List -->
+            <div class="space-y-4">
+              @for (r of reviews; track $index) {
+                <div class="bg-slate-50 p-4 sm:p-5 rounded-[1.5rem] border border-slate-100 shadow-sm transition-all hover:shadow-soft hover:bg-white overflow-hidden relative">
+                  <!-- Decorative Quote Mark -->
+                  <div class="absolute -top-3 -right-3 text-[72px] leading-none text-slate-100 font-serif font-black opacity-50 pointer-events-none">"</div>
+                  
+                  <div class="flex justify-between items-start mb-4 relative z-10">
+                    <div class="flex items-center gap-3">
+                      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-400 to-brand-main flex items-center justify-center text-white font-black text-lg shadow-sm border-2 border-white">
+                        {{ (r.user?.username || 'U')[0].toUpperCase() }}
+                      </div>
+                      <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <strong class="text-brand-dark font-black text-sm sm:text-base">{{ r.user?.username || 'Unknown User' }}</strong>
+                          @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId())) {
+                            <span class="bg-brand-100 text-brand-700 text-[11px] font-black px-2 py-1 rounded-lg uppercase tracking-wider relative top-px">Your Review</span>
+                          }
+                          @if (isRecentReview(r.createdAt)) {
+                            <span class="bg-emerald-50 text-emerald-700 text-[11px] font-black px-2 py-1 rounded-lg uppercase tracking-wider">Recent</span>
+                          }
+                        </div>
+                        <div class="text-xs sm:text-sm text-slate-400 font-semibold mt-1">{{ r.createdAt | recentDate }}</div>
+                        <div class="flex items-center gap-1 mt-1">
+                          @for (star of [1,2,3,4,5]; track star) {
+                            <lucide-angular [img]="StarIcon" [size]="13" [class]="star <= r.rating ? 'text-amber-500 fill-amber-500' : 'text-slate-300'"></lucide-angular>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+    
+                  @if (editingReviewId === r._id) {
+                    <div class="mt-5 p-5 bg-white border-2 border-brand-100 rounded-xl shadow-sm relative z-10 animate-fade-in">
+                      <div class="flex items-center justify-between mb-4">
+                        <label class="text-xs font-black text-slate-600 uppercase tracking-widest">Edit Rating</label>
+                        <div class="flex items-center gap-3">
+                          <input type="range" min="1" max="5" step="1" [(ngModel)]="editRating" class="w-32 accent-amber-500">
+                          <span class="bg-amber-50 text-amber-600 font-black text-base w-9 h-9 flex items-center justify-center rounded-lg border-2 border-amber-200">
+                            {{ editRating }}
+                          </span>
+                        </div>
+                      </div>
+                      <textarea [(ngModel)]="editComment" rows="3" class="w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 text-sm shadow-inner mb-4 resize-none focus:ring-2 focus:ring-brand-main focus:bg-white transition-colors"></textarea>
+                      
+                      <div class="flex justify-end gap-3">
+                        <button (click)="cancelEditReview()" class="bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 text-sm font-bold py-2.5 px-5 rounded-xl transition-all">Cancel</button>
+                        <button (click)="saveEditReview(r._id)" class="bg-brand-main hover:bg-brand-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl shadow-premium hover:-translate-y-0.5 transition-all">Save Update</button>
+                      </div>
+                    </div>
+                  } @else {
+                    <p class="text-slate-700 leading-relaxed text-sm sm:text-[15px] relative z-10 pl-1">{{ r.comment || 'No written comment provided.' }}</p>
+                  }
+    
+                  <!-- Edit/Delete controls -->
+                  @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId() || auth.isAdmin())) {
+                    <div class="flex gap-2.5 mt-5 pt-4 border-t border-slate-200/60 relative z-10">
+                      @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId()) && editingReviewId !== r._id) {
+                        <button (click)="startEditReview(r)" class="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-500 hover:text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors">
+                          <lucide-angular [img]="Edit3Icon" [size]="14"></lucide-angular> Edit
+                        </button>
+                      }
+                      <button (click)="deleteReview(r._id)" class="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                        <lucide-angular [img]="Trash2Icon" [size]="14"></lucide-angular> Delete
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+              
+              @if (reviews.length === 0) {
+                <div class="py-12 bg-slate-50 border-2 border-slate-200 border-dashed rounded-[1.5rem] text-center flex flex-col items-center">
+                  <div class="bg-white p-3 rounded-full mb-4 shadow-sm">
+                    <lucide-angular [img]="MessageSquareIcon" [size]="28" class="text-slate-300"></lucide-angular>
+                  </div>
+                  <p class="text-slate-500 font-bold text-base">No community reviews yet.</p>
+                  <p class="text-slate-400 text-sm mt-1">Be the first to share your thoughts!</p>
+                </div>
+              }
+            </div>
+    
           </div>
         }
-
-        <p style="font-size: 1.1em; color: #555;">{{ restroom.description || 'No description available.' }}</p>
-        <p><strong>Amenities:</strong> {{ restroom.amenities?.length ? restroom.amenities?.join(', ') : 'None' }}</p>
-        <p><strong>Flagged:</strong> {{ restroom.isFlagged ? 'Yes 🚩' : 'No' }}</p>
-        
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px;">
-          <h4 style="margin: 0;">Location Map</h4>
-          <div style="display: flex; gap: 10px;">
-            <button (click)="recenterMap()" style="padding: 4px 8px; font-size: 0.9em; background: #e0e0e0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">
-              📍 Recenter Map
-            </button>
-            <button (click)="toggleFullscreen()" style="padding: 4px 8px; font-size: 0.9em; background: #e0e0e0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">
-              ⛶ Fullscreen
-            </button>
-          </div>
-        </div>
-
-        <!-- Map Area -->
-        <div id="detail-map" style="height: 350px; width: 100%; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 15px; margin-top: 10px; transition: all 0.3s ease;"></div>
-        
-        @if (isFullscreen) {
-          <div style="position: fixed; top: 20px; right: 20px; z-index: 10000;">
-            <button (click)="toggleFullscreen()" style="padding: 10px 16px; font-size: 1.1em; background: #fff; border: 2px solid rgba(0,0,0,0.2); border-radius: 6px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-weight: bold;">
-              ⛶ Exit Fullscreen
-            </button>
-          </div>
-        }
-        
-        <!-- Directions Control -->
-        <div style="padding: 15px; border: 1px solid #eee; border-radius: 8px; background: #f9f9f9;">
-          <h4 style="margin-top: 0; margin-bottom: 10px;">Get Directions</h4>
-          <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 10px;">
-            <label style="cursor: pointer;"><input type="radio" name="profile" value="driving-car" [(ngModel)]="transportProfile"> 🚗 Driving</label>
-            <label style="cursor: pointer;"><input type="radio" name="profile" value="foot-walking" [(ngModel)]="transportProfile"> 🚶 Walking</label>
-            <button (click)="getDirections()" style="padding: 6px 12px; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: white;">Get Directions</button>
-          </div>
-          <p style="color: #666; font-size: 0.9em; margin: 0; min-height: 1.2em;">{{ routeInfo }}</p>
-        </div>
       </div>
-
-      @if (auth.isLoggedIn()) {
-        <div style="margin: 15px 0;">
-          @if (isSaved) {
-            <button (click)="unsave()">💾 Unsave</button>
-          } @else {
-            <button (click)="save()">💾 Save</button>
-          }
-          @if (isFlagged) {
-            <button (click)="unflag()" style="margin-left: 10px;">🚩 Unflag</button>
-          } @else {
-            <button (click)="flag()" style="margin-left: 10px;">🚩 Flag</button>
-          }
-        </div>
-        @if (canDeleteRestroom()) {
-          <div style="margin: 15px 0; display: flex; gap: 10px;">
-            <button (click)="editRestroom()" style="color: #fff; background-color: #f39c12; padding: 8px 12px; border: 1px solid #e67e22; border-radius: 4px; cursor: pointer;">✏️ Edit Restroom</button>
-            <button (click)="deleteRestroom()" style="color: red; background-color: #fee; padding: 8px 12px; border: 1px solid #fcc; border-radius: 4px; cursor: pointer;">🗑️ Delete Restroom</button>
-          </div>
-        }
-        <p>{{ actionMsg }}</p>
-
-        <hr>
-        <h3>Add Review</h3>
-        @if (auth.isLoggedIn() && !hasReviewed) {
-          <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-            <label style="display: block; margin-bottom: 10px;">Rating (1–5): 
-              <input [(ngModel)]="rating" type="number" min="1" max="5" style="width: 60px; padding: 4px;" />
-            </label>
-            <label style="display: block; margin-bottom: 10px;">Comment: 
-              <input [(ngModel)]="comment" placeholder="Your experience..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
-            </label>
-            <button (click)="submitReview()" style="padding: 8px 16px; border-radius: 4px; background: #4285F4; color: white; border: none; cursor: pointer;">Submit Review</button>
-            <p style="margin-top: 10px; margin-bottom: 0;">{{ reviewMsg }}</p>
-          </div>
-        } @else if (auth.isLoggedIn() && hasReviewed) {
-           <div style="background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9; color: #2e7d32;">
-             ✅ You have already reviewed this restroom. Your review is displayed below.
-           </div>
-        }
-      } @else {
-        <p><em>Login to save, flag, or review this restroom.</em></p>
-      }
-
-      <hr>
-      <h3>Reviews</h3>
-      @for (r of reviews; track $index) {
-        <div style="border:1px solid #e0e0e0; margin-bottom:10px; padding:15px; border-radius: 8px; background: #fff;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <strong style="font-size: 1.1em;">{{ r.user?.username || 'Unknown User' }}</strong>
-              @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId())) {
-                <span style="font-size: 0.8em; background: #003366; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Your Review</span>
-              }
-            </div>
-            <span style="color: #f39c12; font-weight: bold; font-size: 1.1em;">★ {{ r.rating }}</span>
-          </div>
-
-          @if (editingReviewId === r._id) {
-            <div style="margin-top: 10px; padding: 10px; background: #f9f9f9; border: 1px solid #ccc; border-radius: 8px;">
-              <label>Rating: <input type="number" min="1" max="5" [(ngModel)]="editRating" style="width: 50px;"/></label><br>
-              <textarea [(ngModel)]="editComment" rows="3" style="width: 100%; margin-top: 10px; box-sizing: border-box;"></textarea><br>
-              <button (click)="saveEditReview(r._id)" style="margin-top: 5px; background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Save</button>
-              <button (click)="cancelEditReview()" style="margin-top: 5px; margin-left: 10px; background: #ccc; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Cancel</button>
-            </div>
-          } @else {
-            <p style="margin: 8px 0; color: #444;">{{ r.comment }}</p>
-          }
-
-          @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId() || auth.isAdmin())) {
-            <div style="margin-top: 10px; display: flex; gap: 10px;">
-              @if (auth.getUserId() && (r.user?._id === auth.getUserId() || r.user === auth.getUserId()) && editingReviewId !== r._id) {
-                <button (click)="startEditReview(r)" style="font-size: 0.85em; padding: 4px 8px; border: 1px solid #ccc; background: #f39c12; color: white; border: none; border-radius: 4px; cursor: pointer;">✏️ Edit</button>
-              }
-              <button (click)="deleteReview(r._id)" style="font-size: 0.85em; padding: 4px 8px; border: 1px solid #ccc; background: #fee; color: red; border: none; border-radius: 4px; cursor: pointer;">🗑️ Delete</button>
-            </div>
-          }
-        </div>
-      }
-      @if (reviews.length === 0) { <p style="color: #666; font-style: italic;">No reviews yet.</p> }
-    } @else {
-      <p>Loading...</p>
-    }
+    </div>
   `
 })
 export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit {
@@ -174,6 +379,26 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   private router = inject(Router);
   private platformId = inject(PLATFORM_ID);
   private destroy$ = new Subject<void>();
+
+  FlagIcon = Flag;
+  StarIcon = Star;
+  Trash2Icon = Trash2;
+  Edit3Icon = Edit3;
+  BookmarkIcon = Bookmark;
+  CheckCircleIcon = CheckCircle;
+  NavigationIcon = Navigation;
+  MapPinIcon = MapPin;
+  UserIcon = User;
+  LocateFixedIcon = LocateFixed;
+  MaximizeIcon = Maximize;
+  MinimizeIcon = Minimize;
+  CheckSquareIcon = CheckSquare;
+  XCircleIcon = XCircle;
+  InfoIcon = Info;
+  MessageSquareIcon = MessageSquare;
+
+  /** Delegates to LocationService — used in template */
+  isRestroomOpenNow = (r: Restroom) => this.locationService.isRestroomOpenNow(r);
 
   private leaflet: any;
   private map!: L.Map;
@@ -204,7 +429,6 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   async ngAfterViewInit() {
     if (isPlatformBrowser(this.platformId)) {
       this.leaflet = await import('leaflet');
-      // Adding a tiny delay allows the @if block to render if restroom is fetched very quickly
       setTimeout(() => {
         if (this.restroom && document.getElementById('detail-map') && !this.map) {
           this.initMap();
@@ -255,7 +479,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
 
   toggleFullscreen() {
     this.isFullscreen = !this.isFullscreen;
-    const mapElement = document.getElementById('detail-map');
+    const mapElement = document.getElementById('detail-map-container');
     if (mapElement) {
       if (this.isFullscreen) {
         mapElement.classList.add('fullscreen-map');
@@ -291,9 +515,9 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
     const lat = this.restroom.location.latitude;
     const lng = this.restroom.location.longitude;
 
-    this.map = L.map('detail-map');
+    this.map = L.map('detail-map', { zoomControl: false });
+    L.control.zoom({ position: 'bottomright' }).addTo(this.map);
     
-    // Fit bounds if user location is available and sharing is on, otherwise set view around restroom
     if (this.locationEnabled && this.userPos) {
       const bounds = L.latLngBounds([
         [this.userPos.lat, this.userPos.lng],
@@ -304,26 +528,23 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
       this.map.setView([lat, lng], 16);
     }
     
-    // Standard OpenStreetMap with high detail for buildings/texts, but filtered for modern aesthetics
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      attribution: '&copy; OpenStreetMap',
       maxZoom: 19,
       className: 'osm-custom-tiles'
     }).addTo(this.map);
 
-    // Custom dark blue marker for the restroom
     const customPinIcon = L.divIcon({
       className: 'custom-restroom-pin',
-      html: `<div style="background-color: #003366; width: 28px; height: 28px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 14px; font-weight: bold;">R</span></div>`,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
-      popupAnchor: [0, -16]
+      html: `<div style="background-color: #2563EB; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; position: relative;"><div style="width: 10px; height: 10px; background-color: white; border-radius: 50%;"></div></div>`,
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20]
     });
 
-    // Add restroom marker
     this.restroomMarker = L.marker([lat, lng], { icon: customPinIcon })
       .addTo(this.map)
-      .bindPopup(`<div style="font-weight: bold; font-size: 1.1em;">${this.restroom.name}</div>`);
+      .bindPopup(`<div style="font-family: inherit; font-weight: 800; font-size: 1.2em; color: #0f172a; padding: 4px;">${this.restroom.name}</div>`);
       
     this.updateUserMarker();
   }
@@ -332,13 +553,13 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
     if (!this.map || !this.leaflet) return;
     const L = this.leaflet;
     const center = this.userPos || { lat: this.locationService.HAU_COORDS[0], lng: this.locationService.HAU_COORDS[1] };
-    const popupText = this.userPos && this.locationEnabled ? 'You are here' : 'Default Location: Holy Angel University';
+    const popupText = this.userPos && this.locationEnabled ? 'You are here' : 'Default Location';
 
     const userIcon = L.divIcon({
       className: 'user-location-marker',
-      html: `<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.4);"></div>`,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11]
+      html: `<div style="background-color: #10b981; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px rgba(16, 185, 129, 0.6); animation: pulse 2s infinite;"></div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
     });
 
     if (this.userMarker) {
@@ -359,16 +580,16 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
     this.routeInfo = `Calculating ${this.transportProfile === 'foot-walking' ? 'walking' : 'driving'} directions...`;
     
     this.api.getDirections(start, end, this.transportProfile).subscribe({
-      next: (res) => {
+      next: (res: any) => {
         if (this.routeLayer) {
           this.map.removeLayer(this.routeLayer);
         }
 
         this.routeLayer = L.geoJSON(res, {
           style: {
-            color: this.transportProfile === 'foot-walking' ? '#28a745' : '#0055ff',
-            weight: 5,
-            opacity: 0.7
+            color: this.transportProfile === 'foot-walking' ? '#10b981' : '#2563EB',
+            weight: 6,
+            opacity: 0.8
           }
         }).addTo(this.map);
 
@@ -377,20 +598,19 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
           this.map.fitBounds(bounds, { padding: [50, 50] });
         }
 
-        // Safely extract distance and duration from ORS response
         const props = res.features?.[0]?.properties;
         if (props && props.summary) {
           const distKm = (props.summary.distance / 1000).toFixed(2);
           const timeMins = Math.round(props.summary.duration / 60);
-          this.routeInfo = `✅ Route found: ${distKm} km, ~${timeMins} min`;
+          this.routeInfo = `Route found: ${distKm} km, ~${timeMins} min`;
         } else {
-          this.routeInfo = '✅ Route found';
+          this.routeInfo = 'Route found';
         }
         this.cd.markForCheck();
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Directions error:', err);
-        this.routeInfo = '❌ Failed to get directions. Try a different profile or location.';
+        this.routeInfo = '❌ Failed to get directions.';
         this.cd.markForCheck();
       }
     });
@@ -401,7 +621,6 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
       next: (r) => { 
         this.restroom = r;
         this.cd.markForCheck();
-        // Initialize map if it hasn't been yet and leaflet is loaded
         if (this.leaflet && !this.map) {
           setTimeout(() => {
             if (document.getElementById('detail-map')) {
@@ -414,21 +633,13 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
     });
     this.api.getReviews(id).subscribe({
       next: (r) => { 
-        this.reviews = r;
-        
+        this.reviews = [...r].sort((a: any, b: any) =>
+          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+
         const currentUserId = this.auth.getUserId();
         if (currentUserId) {
-          // Check if the user has already reviewed
           this.hasReviewed = this.reviews.some((rev: any) => rev.user && (rev.user._id === currentUserId || rev.user === currentUserId));
-          
-          // Sort to put current user's review on top
-          this.reviews.sort((a: any, b: any) => {
-            const aIsCurrent = a.user && (a.user._id === currentUserId || a.user === currentUserId);
-            const bIsCurrent = b.user && (b.user._id === currentUserId || b.user === currentUserId);
-            if (aIsCurrent && !bIsCurrent) return -1;
-            if (!aIsCurrent && bIsCurrent) return 1;
-            return 0;
-          });
         }
         
         this.cd.markForCheck();
@@ -456,7 +667,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   save() {
     this.api.saveRestroom(this.restroom!._id).subscribe({
       next: (r) => {
-        this.actionMsg = `✅ ${r.message}`;
+        this.actionMsg = `Reserved successfully`;
         this.isSaved = true;
         this.cd.markForCheck();
       },
@@ -467,7 +678,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   unsave() {
     this.api.saveRestroom(this.restroom!._id).subscribe({
       next: (r) => {
-        this.actionMsg = `✅ ${r.message}`;
+        this.actionMsg = `Removed from saved`;
         this.isSaved = false;
         this.cd.markForCheck();
       },
@@ -478,7 +689,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   flag() {
     this.api.flagRestroom(this.restroom!._id).subscribe({
       next: (r) => {
-        this.actionMsg = `✅ ${r.message}`;
+        this.actionMsg = `Restroom flagged`;
         this.isFlagged = r.flagged === true;
         this.restroom!.isFlagged = true;
         this.cd.markForCheck();
@@ -493,7 +704,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   unflag() {
     this.api.flagRestroom(this.restroom!._id).subscribe({
       next: (r) => {
-        this.actionMsg = `✅ ${r.message}`;
+        this.actionMsg = `Flag removed`;
         this.isFlagged = r.flagged === true;
         if (r.flagged === false) {
           this.restroom!.isFlagged = false;
@@ -510,7 +721,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   submitReview() {
     this.api.addReview(this.restroom!._id, this.rating, this.comment).subscribe({
       next: (r) => {
-        this.reviewMsg = '✅ Review submitted!';
+        this.reviewMsg = 'Successfully posted review';
         this.hasReviewed = true;
         this.reviews.unshift({ ...r, user: { _id: this.auth.getUserId(), username: this.auth.currentUser()?.username } });
         this.cd.markForCheck();
@@ -520,15 +731,13 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
   }
 
   deleteReview(reviewId: string) {
-    if (!confirm('Delete this review?')) return;
+    if (!confirm('Are you sure you want to delete this review?')) return;
     this.api.deleteReview(reviewId).subscribe({
       next: () => {
         this.reviews = this.reviews.filter(r => r._id !== reviewId);
-        // If they deleted their own review, they can review again
         const currentUserId = this.auth.getUserId();
         this.hasReviewed = this.reviews.some((rev: any) => rev.user && (rev.user._id === currentUserId || rev.user === currentUserId));
-
-        this.reviewMsg = '✅ Review deleted';
+        this.reviewMsg = 'Review deleted gracefully';
         this.cd.markForCheck();
       },
       error: (e) => {
@@ -550,17 +759,17 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
 
   saveEditReview(reviewId: string) {
     this.api.editReview(reviewId, this.editRating, this.editComment).subscribe({
-      next: (r) => {
+      next: (r: any) => {
         const idx = this.reviews.findIndex(rev => rev._id === reviewId);
         if (idx !== -1) {
           this.reviews[idx].rating = r.rating;
           this.reviews[idx].comment = r.comment;
         }
         this.editingReviewId = null;
-        this.reviewMsg = '✅ Review updated';
+        this.reviewMsg = 'Review updated perfectly';
         this.cd.markForCheck();
       },
-      error: (e) => {
+      error: (e: any) => {
         this.reviewMsg = `❌ ${e.error?.message || e.message}`;
         this.cd.markForCheck();
       }
@@ -575,7 +784,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
 
   deleteRestroom() {
     if (!this.restroom) return;
-    if (!confirm(`Are you sure you want to DELETE "${this.restroom.name}"? This action cannot be undone.`)) return;
+    if (!confirm(`Are you absolutely sure you want to delete "${this.restroom.name}"? This cannot be reversed.`)) return;
 
     const deleteCall = this.auth.isAdmin() 
       ? this.api.adminDeleteRestroom(this.restroom._id)
@@ -583,7 +792,7 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
 
     deleteCall.subscribe({
       next: (response) => {
-        this.actionMsg = '✅ Restroom deleted successfully!';
+        this.actionMsg = 'Restroom permanently deleted';
         setTimeout(() => this.router.navigate(['/flagged-restrooms']), 2000);
         this.cd.markForCheck();
       },
@@ -592,5 +801,13 @@ export class RestroomDetailComponent implements OnInit, OnDestroy, AfterViewInit
         this.cd.markForCheck();
       }
     });
+  }
+
+  isRecentReview(createdAt?: string): boolean {
+    if (!createdAt) return false;
+    const created = new Date(createdAt).getTime();
+    if (Number.isNaN(created)) return false;
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    return Date.now() - created <= sevenDays;
   }
 }

@@ -9,12 +9,14 @@ import { Restroom } from '../../models/restroom.model';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 import type * as L from 'leaflet';
+import { LucideAngularModule, LocateFixed, Maximize, Minimize, X, RefreshCcw, Bath, Star, MapPin, Search, Filter, ArrowRight } from 'lucide-angular';
+import { LoadingModalComponent } from '../loading-modal/loading-modal';
 
-const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
+const AMENITIES = ['Bidet', 'Soap', 'Accessibility', 'Child Friendly'];
 
 @Component({
   selector: 'app-home',
-  imports: [RouterLink, FormsModule, CommonModule],
+  imports: [RouterLink, FormsModule, CommonModule, LucideAngularModule, LoadingModalComponent],
   standalone: true,
   styles: [`
     .fullscreen-map {
@@ -27,124 +29,220 @@ const AMENITIES = ['Bidet', 'Soap', 'PWD Friendly', 'Clean', 'Lock', 'Tissue'];
       border-radius: 0 !important;
     }
     .osm-custom-tiles {
-      filter: saturate(0.6) brightness(1.05) contrast(1.05) hue-rotate(-10deg);
+      filter: saturate(0.8) brightness(1.02) contrast(1.05) hue-rotate(-10deg);
     }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
   `],
   template: `
-    <h2>All Restrooms</h2>
-    
-    <!-- Filters Area -->
-    <div style="background: #fdfdfd; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-      <h3 style="margin-top: 0; margin-bottom: 15px;">Advanced Filters</h3>
-      
-      <!-- Open Status -->
-      <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-        <label style="font-weight: bold; cursor: pointer; color: #28a745;">
-          <input type="checkbox" [(ngModel)]="showOpenOnly" (change)="onFilterChange()" /> Show Open Now Only
-        </label>
-      </div>
-
-      <!-- Radius -->
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
-        <label for="radiusSlider" style="min-width: 110px; font-weight: bold;">Radius: {{ radius / 1000 | number:'1.0-1' }} km</label>
-        <input type="range" id="radiusSlider" min="500" max="20000" step="500" [(ngModel)]="radius" (change)="onFilterChange()" style="flex: 1;">
-      </div>
-
-      <!-- Rating -->
-      <div style="margin-bottom: 15px; display: flex; align-items: center;">
-        <label style="font-weight: bold;">Minimum Rating:</label>
-        <input type="number" min="1" max="5" step="0.1" [(ngModel)]="minRating" (change)="onFilterChange()" style="width: 60px; margin-left: 10px; padding: 4px;">
-        <span style="font-size: 0.85em; color: #666; margin-left: 10px;">(1.0 - 5.0)</span>
-        @if (minRating !== null) {
-          <button (click)="clearRating()" style="margin-left: 15px; padding: 4px 8px; font-size: 0.85em; cursor: pointer; border-radius: 4px; border: 1px solid #ccc;">Clear Rating</button>
-        }
-      </div>
-
-      <!-- Amenities -->
-      <div>
-        <div style="display: flex; align-items: center; gap: 15px;">
-          <label style="font-weight: bold;">Required Amenities:</label>
-          @if (selectedAmenities.length > 0) {
-            <button (click)="clearAmenities()" style="padding: 4px 8px; font-size: 0.85em; cursor: pointer; border-radius: 4px; border: 1px solid #ccc;">Clear Amenities</button>
-          }
-        </div>
-        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px;">
-          @for (a of amenityOptions; track a) {
-            <label style="cursor: pointer; display: flex; align-items: center; gap: 4px; background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 0.9em;">
-              <input type="checkbox" [checked]="selectedAmenities.includes(a)" (change)="toggleAmenity(a)"> {{ a }}
-            </label>
-          }
-        </div>
-      </div>
-    </div>
-
-    <!-- Map Controls Area -->
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px;">
-      <div>
-        <label style="cursor: pointer; font-weight: bold;">
-          <input type="checkbox" [checked]="locationEnabled" (change)="toggleLocation($event)"> Allow Location Sharing
-        </label>
-        <p style="font-size: 0.85em; color: #555; margin: 5px 0 0 0;">
-          If disabled, default location is Angeles City Holy Angel University.
-        </p>
-      </div>
-      <div style="display: flex; gap: 10px;">
-        <button (click)="recenterMap()" style="padding: 6px 12px; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: #fff;">📍 Recenter Map</button>
-        <button (click)="toggleFullscreen()" style="padding: 6px 12px; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: #fff;">⛶ Fullscreen</button>
-      </div>
-    </div>
-
-    <!-- Map Container -->
-    <div id="home-map" style="height: 400px; width: 100%; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 20px; transition: all 0.3s ease;"></div>
-
-    @if (isFullscreen) {
-      <div style="position: fixed; top: 20px; right: 20px; z-index: 10000;">
-        <button (click)="toggleFullscreen()" style="padding: 10px 16px; font-size: 1.1em; background: #fff; border: 2px solid rgba(0,0,0,0.2); border-radius: 6px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-weight: bold;">
-          ⛶ Exit Fullscreen
-        </button>
-      </div>
-    }
-
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-      <h3 style="margin: 0;">Restrooms found ({{ filteredRestrooms.length }})</h3>
-      <button (click)="fetchData()" style="padding: 5px 10px;">Refresh List</button>
-    </div>
-    
-    <p style="color: red; margin: 0;">{{ statusMsg }}</p>
-
-    <!-- List -->
-    @if (filteredRestrooms.length === 0 && !statusMsg) {
-      <p style="color: #666; font-style: italic;">No restrooms found matching your filters.</p>
-    }
-
-    @for (r of filteredRestrooms; track r._id) {
-      <div style="border:1px solid #e0e0e0; margin-bottom:12px; padding:15px; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <div style="display: flex; gap: 15px; align-items: flex-start;">
-          
-          @if (r.images && r.images.length > 0) {
-            <img [src]="r.images[0]" alt="Restroom Cover" style="width: 120px; height: 120px; object-fit: cover; border-radius: 8px; flex-shrink: 0;" />
-          }
-          
-          <div style="flex: 1; display: flex; justify-content: space-between; align-items: flex-start;">
+    <app-loading-modal [visible]="isLoading"></app-loading-modal>
+    <div class="bg-brand-50 w-full min-h-screen pb-10 pt-6 animate-fade-in font-sans">
+      <div class="app-page flex flex-col h-[calc(100vh-4rem)]">
+        
+        <div class="mb-6 shrink-0 rounded-[2rem] border border-slate-100 bg-white/95 p-5 shadow-soft">
+          <!-- Header & Top Controls -->
+          <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
-              <strong style="font-size: 1.1em;">{{ r.name }}</strong>
-              @if (r.averageRating != null) {
-                <span style="color: #f39c12; font-weight: bold; margin-left: 8px; font-size: 1.1em;">★ {{ r.averageRating | number:'1.1-1' }}</span>
-              } @else {
-                <span style="color: #999; font-size: 0.9em; margin-left: 8px;">(No ratings)</span>
-              }
-              <br>
-              <span style="color: #666; display: inline-block; margin-top: 5px;">{{ r.description || 'No description' }}</span><br>
-              <small style="display: inline-block; margin-top: 5px; color: #555;"><b>Amenities:</b> {{ r.amenities?.join(', ') || 'None' }}</small>
+              <h2 class="text-3xl font-black text-[#1E3A8A] tracking-tight">Potty Pal</h2>
+              <p class="mt-1 text-sm font-semibold text-slate-500">Find clean and accessible restrooms nearby.</p>
             </div>
-            <div>
-              <a [routerLink]="['/restrooms', r._id]" style="text-decoration: none; color: #fff; background: #0066cc; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 0.9em; display: inline-block;">View Details →</a>
+            
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-white hover:shadow-md cursor-pointer">
+                <input type="checkbox" [checked]="locationEnabled" (change)="toggleLocation($event)" class="h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]">
+                <span [class.text-[#2563EB]]="locationEnabled" [class.text-slate-600]="!locationEnabled">Live Location</span>
+              </label>
+              <button (click)="fetchData()" class="flex items-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-premium transition-all hover:bg-[#1D4ED8]" [title]="statusMsg">
+                <lucide-angular [img]="RefreshCcwIcon" [size]="14" [ngClass]="{'animate-spin': statusMsg && statusMsg.includes('Loading')}"></lucide-angular> Refresh
+              </button>
             </div>
           </div>
 
+          <div class="my-5 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+    
+          <!-- Dynamic Filters Bar -->
+          <div class="flex flex-wrap items-center gap-4 z-10 relative">
+            
+            <!-- Open Now -->
+            <label class="flex items-center gap-2 cursor-pointer text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg hover:bg-emerald-100 transition-all">
+              <input type="checkbox" [(ngModel)]="showOpenOnly" (change)="onFilterChange()" class="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 border-emerald-300">
+              OPEN NOW ONLY
+            </label>
+            
+            <div class="w-px h-6 bg-slate-200 hidden sm:block"></div>
+            
+            <!-- Radius -->
+            <div class="flex items-center gap-3 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+              <label class="text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Radius <span class="text-[#2563EB] ml-1">{{ radius / 1000 | number:'1.0-1' }}km</span></label>
+              <input type="range" min="500" max="20000" step="500" [(ngModel)]="radius" (change)="onFilterChange()" class="w-24 sm:w-32 accent-[#2563EB] h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer">
+            </div>
+            
+            <div class="w-px h-6 bg-slate-200 hidden sm:block"></div>
+            
+            <!-- Min Rating -->
+            <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+              <label class="text-xs font-black text-slate-500 uppercase tracking-widest">Min Rating</label>
+              <div class="flex items-center bg-white border border-slate-200 rounded-md px-1 ml-1 overflow-hidden h-7 w-16">
+                <lucide-angular [img]="StarIcon" [size]="12" class="text-amber-500 ml-1"></lucide-angular>
+                <input type="number" min="0" max="5" step="0.5" [(ngModel)]="minRating" (ngModelChange)="onRatingChange($event)" class="w-full h-full border-none p-0 text-center text-xs font-bold text-slate-700 focus:ring-0 bg-transparent">
+              </div>
+              @if (minRating) {
+                <button (click)="clearRating()" class="text-slate-400 hover:text-red-500"><lucide-angular [img]="XIcon" [size]="14"></lucide-angular></button>
+              }
+            </div>
+            
+            <!-- Amenities -->
+            <div class="flex-1 min-w-[300px] flex items-center justify-end gap-2 ml-auto overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
+              <span class="text-xs font-black text-slate-400 uppercase tracking-widest mr-2 shrink-0">Amenities:</span>
+              @for (a of amenityOptions; track a) {
+                <label class="cursor-pointer shrink-0">
+                  <input type="checkbox" [checked]="selectedAmenities.includes(a)" (change)="toggleAmenity(a)" class="hidden">
+                  <div class="text-xs font-bold px-3 py-1.5 border rounded-lg whitespace-nowrap transition-colors"
+                       [ngClass]="selectedAmenities.includes(a) ? 'bg-[#EEF2FF] border-[#818CF8] text-[#4338CA]' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'">
+                    {{ a }}
+                  </div>
+                </label>
+              }
+            </div>
+          </div>
         </div>
+    
+        <div class="mb-4 shrink-0 px-1">
+          <h3 class="text-lg font-black text-[#1E3A8A] flex items-center gap-2">
+            Restrooms in your area <span class="bg-[#2563EB] text-white px-2.5 py-0.5 rounded-full text-xs shadow-sm">{{ filteredRestrooms.length }}</span>
+          </h3>
+        </div>
+
+        <!-- Main Content Area: List + Map -->
+        <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+          
+          <!-- Left Column: Available Restrooms List -->
+          <div class="w-full lg:w-[420px] xl:w-[480px] bg-transparent flex flex-col shrink-0 min-h-0 max-h-full overflow-hidden">
+            <div class="overflow-y-auto pr-2 custom-scrollbar flex flex-col gap-4 pb-4">
+              
+              @if (filteredRestrooms.length === 0 && !statusMsg) {
+                <div class="flex flex-col items-center justify-center h-48 bg-white rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 p-6 text-center">
+                  <lucide-angular [img]="MapPinIcon" [size]="40" class="mb-3 opacity-50 text-[#818CF8]"></lucide-angular>
+                  <p class="font-bold text-sm text-slate-600 mb-1">No projects found nearby.</p>
+                  <p class="text-xs">Adjust your radius or clear filters.</p>
+                </div>
+              }
+              
+              @for (r of filteredRestrooms; track r._id; let i = $index) {
+                <div class="group flex flex-col sm:flex-row bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-premium hover:border-[#818CF8]/30 hover:scale-[1.01] transition-all duration-300 relative animate-fade-in-up" [style.animation-delay]="(i * 40) + 'ms'">
+                  
+                  <!-- Top/Left: Image + CTA -->
+                  <div class="flex flex-row sm:flex-col sm:w-[140px] sm:shrink-0 sm:m-3 gap-3 p-3 sm:p-0">
+                    <div class="relative w-[100px] h-[100px] sm:w-full sm:h-[132px] shrink-0 rounded-xl sm:rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 shadow-sm">
+                      @if (r.images && r.images.length > 0) {
+                        <img [src]="r.images[0]" alt="Cover" class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                        <div class="absolute inset-0 bg-black/10 pointer-events-none"></div>
+                      } @else {
+                        <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50">
+                          <span class="text-sm font-black tracking-widest text-[#2563EB] opacity-90 italic">Potty Pal</span>
+                        </div>
+                      }
+                      <!-- Open/Close dot -->
+                      <div class="absolute top-2 left-2">
+                        @if (isRestroomOpenNow(r)) {
+                          <div class="w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" title="Open Now"></div>
+                        } @else {
+                          <div class="w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white shadow-sm" title="Closed"></div>
+                        }
+                      </div>
+                    </div>
+                    <!-- CTA sits next to image on mobile, below image on sm+ -->
+                    <div class="flex items-end sm:items-stretch flex-1 sm:flex-none">
+                      <a [routerLink]="['/restrooms', r._id]" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-brand-main px-3 py-2 text-xs font-black text-white shadow-sm transition-all hover:bg-brand-600 hover:shadow-md whitespace-nowrap">
+                        View Restroom
+                        <lucide-angular [img]="ArrowRightIcon" [size]="12"></lucide-angular>
+                      </a>
+                    </div>
+                  </div>
+                  
+                  <!-- Details -->
+                  <div class="px-4 pb-4 pt-2 sm:pt-4 sm:pl-1 sm:pr-4 flex flex-col min-w-0 gap-2 flex-1">
+                    <!-- Name + Rating -->
+                    <div class="flex items-start justify-between gap-2">
+                      <h4 class="min-w-0 flex-1 text-base sm:text-lg font-black text-[#1E3A8A] leading-snug hover:text-[#2563EB] transition-colors">
+                        <a [routerLink]="['/restrooms', r._id]">{{ r.name }}</a>
+                      </h4>
+                      @if (r.averageRating) {
+                        <span class="bg-amber-50 text-amber-600 text-xs font-black px-2 py-1 rounded-lg flex items-center gap-1 shrink-0 shadow-sm self-start">
+                          ★ {{ r.averageRating | number:'1.1-1' }}
+                        </span>
+                      }
+                    </div>
+                    
+                    <!-- Status + Address -->
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      @if (isRestroomOpenNow(r)) {
+                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-700 shrink-0">Open</span>
+                      } @else {
+                        <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700 shrink-0">Closed</span>
+                      }
+                      <p class="text-xs font-semibold text-slate-500 flex items-center gap-1 break-all leading-relaxed">
+                        <lucide-angular [img]="MapPinIcon" [size]="12" class="text-slate-400 shrink-0"></lucide-angular>
+                        Addr: {{r.location?.latitude | number:'1.2-2'}}, {{r.location?.longitude | number:'1.2-2'}}
+                      </p>
+                    </div>
+
+                    <!-- Description -->
+                    @if (r.description) {
+                      <p class="text-xs text-slate-500 leading-relaxed">
+                        {{ r.description }}
+                      </p>
+                    }
+                    
+                    <!-- Amenities -->
+                    <div class="flex flex-wrap gap-1 pt-0.5">
+                      @if (r.amenities && r.amenities.length) {
+                        @for (am of r.amenities; track am) {
+                          <span class="bg-indigo-50 text-indigo-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{{ am }}</span>
+                        }
+                      } @else {
+                        <span class="text-slate-300 text-xs italic">No amenities</span>
+                      }
+                    </div>
+                  </div>
+                  
+                </div>
+              }
+            </div>
+          </div>
+    
+          <!-- Right Column: Map -->
+          <div id="home-map-container" class="flex-1 rounded-[1.5rem] md:rounded-[2rem] overflow-hidden shadow-premium border-[6px] border-white relative h-[50vh] lg:h-full shrink-0 lg:shrink group bg-slate-200 isolation-isolate">
+            
+            <!-- Map Controls overlay -->
+            <div class="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
+              <button (click)="recenterMap()" class="flex items-center justify-center w-10 h-10 bg-white text-brand-dark rounded-xl shadow-md hover:bg-brand-50 transition-colors" title="Recenter Map">
+                <lucide-angular [img]="LocateFixedIcon" [size]="18"></lucide-angular>
+              </button>
+              @if (!isFullscreen) {
+                <button (click)="toggleFullscreen()" class="flex items-center justify-center w-10 h-10 bg-white text-brand-dark rounded-xl shadow-md hover:bg-brand-50 transition-colors" title="Full Screen">
+                  <lucide-angular [img]="MaximizeIcon" [size]="18"></lucide-angular>
+                </button>
+              }
+            </div>
+            
+            <div id="home-map" class="w-full h-full z-0 transition-opacity duration-500" [ngStyle]="{'opacity': map ? 1 : 0}"></div>
+            
+            @if (isFullscreen) {
+              <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000]">
+                <button (click)="toggleFullscreen()" class="flex items-center gap-2 px-8 py-3 text-base font-black bg-slate-900 text-white rounded-full shadow-2xl hover:bg-slate-800 transition-all border-2 border-slate-700/50 hover:scale-105 pointer-events-auto">
+                   <lucide-angular [img]="MinimizeIcon" [size]="20"></lucide-angular> Exit Full Screen
+                </button>
+              </div>
+            }
+          </div>
+          
+        </div>
+
       </div>
-    }
+    </div>
   `
 })
 export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
@@ -156,11 +254,40 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private platformId = inject(PLATFORM_ID);
   private destroy$ = new Subject<void>();
 
-  private leaflet: any;
-  private map!: L.Map;
-  private userMarker?: L.Marker;
-  private radiusCircle?: L.Circle;
-  private markersMap: Map<string, L.Marker> = new Map();
+  isLoading = true;
+  private dataReady = false;
+  private mapReady = false;
+
+  private checkLoadingComplete() {
+    if (this.dataReady && this.mapReady) {
+      setTimeout(() => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }, 300);
+    }
+  }
+
+  /** Delegates to LocationService — used by template bindings */
+  isRestroomOpenNow = (r: Restroom) => this.locationService.isRestroomOpenNow(r);
+
+
+  LocateFixedIcon = LocateFixed;
+  MaximizeIcon = Maximize;
+  MinimizeIcon = Minimize;
+  XIcon = X;
+  RefreshCcwIcon = RefreshCcw;
+  BathIcon = Bath;
+  StarIcon = Star;
+  MapPinIcon = MapPin;
+  SearchIcon = Search;
+  FilterIcon = Filter;
+  ArrowRightIcon = ArrowRight;
+
+  leaflet: any;
+  map!: L.Map;
+  userMarker?: L.Marker;
+  radiusCircle?: L.Circle;
+  markersMap: Map<string, L.Marker> = new Map();
 
   restrooms: Restroom[] = [];
   filteredRestrooms: Restroom[] = [];
@@ -170,10 +297,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   locationEnabled = false;
   hasAutoCentered = false;
   userPos: {lat: number; lng: number} | null = null;
-  radius = 5000; // 5km default
+  radius = 5000;
   isFullscreen = false;
   
-  // Advanced Filters
   minRating: number | null = null;
   amenityOptions = AMENITIES;
   selectedAmenities: string[] = [];
@@ -195,7 +321,6 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.locationService.locationEnabled$.pipe(takeUntil(this.destroy$)).subscribe(enabled => {
       this.locationEnabled = enabled;
-      // Auto-recenter exactly once when freshly enabled
       if (enabled && this.userPos) {
         this.recenterMap();
         this.hasAutoCentered = true;
@@ -225,7 +350,6 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       )
       .subscribe(() => {
         if (this.router.url === '/' || this.router.url === '/home') {
-          // Re-fetch when navigating to this page
           this.fetchData();
         }
       });
@@ -263,6 +387,12 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.filterRestrooms();
   }
 
+  onRatingChange(val: number) {
+    if (val < 0) this.minRating = 0;
+    if (val > 5) this.minRating = 5;
+    this.onFilterChange();
+  }
+
   recenterMap() {
     if (!this.map || !this.leaflet) return;
     const center = this.userPos || { lat: this.locationService.HAU_COORDS[0], lng: this.locationService.HAU_COORDS[1] };
@@ -271,7 +401,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   toggleFullscreen() {
     this.isFullscreen = !this.isFullscreen;
-    const mapElement = document.getElementById('home-map');
+    const mapElement = document.getElementById('home-map-container');
     if (mapElement) {
       if (this.isFullscreen) {
         mapElement.classList.add('fullscreen-map');
@@ -286,97 +416,55 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private initMap(): void {
     const L = this.leaflet;
-    this.map = L.map('home-map').setView(this.locationService.HAU_COORDS, 14);
+    this.map = L.map('home-map', {
+      zoomControl: false // Disable default zoom control to make it look cleaner
+    }).setView(this.locationService.HAU_COORDS, 14);
     
-    // Standard OpenStreetMap with high detail for buildings/texts, but filtered for modern aesthetics
+    // Default leafet zoom control position
+    L.control.zoom({ position: 'bottomright' }).addTo(this.map);
+    
+    // Light map theme reverted to original
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      attribution: '&copy; OpenStreetMap',
       maxZoom: 19,
       className: 'osm-custom-tiles'
     }).addTo(this.map);
 
     this.updateUserMarkerAndRadius();
     this.updateRestroomMarkers();
+    this.mapReady = true;
+    this.checkLoadingComplete();
   }
 
-  // Haversine formula to find distance between two lat/lng in meters
-  private getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371e3; 
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  }
-
-  isRestroomOpenNow(r: Restroom): boolean {
-    if (!r.operatingHours) return true; // default assume open
-    
-    const { is24Hours, openTime, closeTime } = r.operatingHours;
-    if (is24Hours) return true;
-    if (!openTime || !closeTime) return true;
-
-    const now = new Date();
-    const phTimeStr = now.toLocaleString("en-US", {timeZone: "Asia/Manila"});
-    const phTime = new Date(phTimeStr);
-    
-    const currentHour = phTime.getHours();
-    const currentMinute = phTime.getMinutes();
-    
-    const [openH, openM] = openTime.split(':').map(Number);
-    const [closeH, closeM] = closeTime.split(':').map(Number);
-    
-    const currentTotalMins = currentHour * 60 + currentMinute;
-    const openTotalMins = openH * 60 + openM;
-    const closeTotalMins = closeH * 60 + closeM;
-    
-    if (closeTotalMins < openTotalMins) {
-      // Crosses midnight, e.g. open 22:00, close 02:00
-      return currentTotalMins >= openTotalMins || currentTotalMins <= closeTotalMins;
-    } else {
-      // Normal day, e.g. open 08:00, close 22:00
-      return currentTotalMins >= openTotalMins && currentTotalMins <= closeTotalMins;
-    }
-  }
 
   private filterRestrooms() {
     const center = this.userPos || { lat: this.locationService.HAU_COORDS[0], lng: this.locationService.HAU_COORDS[1] };
     
     this.filteredRestrooms = this.restrooms.filter(r => {
-      // 1. Radius Filter
       if (!r.location || !r.location.latitude || !r.location.longitude) return false;
-      const d = this.getDistance(center.lat, center.lng, r.location.latitude, r.location.longitude);
+      const d = this.locationService.getDistance(center.lat, center.lng, r.location.latitude, r.location.longitude);
       if (d > this.radius) return false;
 
-      // 2. Rating Filter
       if (this.minRating !== null && this.minRating > 0) {
         if (r.averageRating == null || r.averageRating < this.minRating) return false;
       }
 
-      // 3. Amenities Filter
       if (this.selectedAmenities.length > 0) {
         if (!r.amenities) return false;
         const hasAllAmenities = this.selectedAmenities.every(a => r.amenities!.includes(a));
         if (!hasAllAmenities) return false;
       }
 
-      // 4. Open Now Filter
       if (this.showOpenOnly) {
-        if (!this.isRestroomOpenNow(r)) return false;
+        if (!this.locationService.isRestroomOpenNow(r)) return false;
       }
 
       return true;
     });
 
-    // 5. Sort nearest to farthest
     this.filteredRestrooms.sort((a, b) => {
-      const distA = this.getDistance(center.lat, center.lng, a.location!.latitude, a.location!.longitude);
-      const distB = this.getDistance(center.lat, center.lng, b.location!.latitude, b.location!.longitude);
+      const distA = this.locationService.getDistance(center.lat, center.lng, a.location!.latitude, a.location!.longitude);
+      const distB = this.locationService.getDistance(center.lat, center.lng, b.location!.latitude, b.location!.longitude);
       return distA - distB;
     });
 
@@ -384,6 +472,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   fetchData() {
+    this.isLoading = true;
+    this.dataReady = false;
+    this.mapReady = !!this.map;
     this.statusMsg = 'Loading...';
     this.cdr.markForCheck();
     
@@ -414,11 +505,14 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         this.restrooms = res;
         this.statusMsg = '';
         this.filterRestrooms();
+        this.dataReady = true;
+        this.checkLoadingComplete();
         this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('[Home] Error:', err);
-        this.statusMsg = `❌ ${err.error?.message || 'Failed to load restrooms'}`;
+        this.statusMsg = 'Failed to load';
+        this.isLoading = false;
         this.cdr.markForCheck();
       }
     });
@@ -428,47 +522,45 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!this.map || !this.leaflet) return;
     const L = this.leaflet;
 
-    // Remove existing markers
     this.markersMap.forEach(m => this.map.removeLayer(m));
     this.markersMap.clear();
 
-    // Add new ones
     this.filteredRestrooms.forEach(r => {
       if (r.location && r.location.latitude && r.location.longitude) {
         
         const isSaved = this.savedRestroomIds.has(r._id!);
-        const isOpen = this.isRestroomOpenNow(r);
+        const isOpen = this.locationService.isRestroomOpenNow(r);
         
-        let bgColor = isSaved ? '#28a745' : '#003366';
+        // Match the blue theme of the second photo (with blue dots for pins)
+        let bgColor = isSaved ? '#10B981' : '#2563EB'; // Green if saved, else Brand main
         let opacity = 1;
         
         if (!isOpen) {
-          bgColor = '#e74c3c'; // red
-          opacity = 0.6; // low opacity
+          bgColor = '#EF4444'; // Red for closed
+          opacity = 0.8;
         }
 
         const customPinIcon = L.divIcon({
           className: 'custom-restroom-pin',
-          html: `<div style="background-color: ${bgColor}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5); opacity: ${opacity}; display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 12px; font-weight: bold;">R</span></div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-          popupAnchor: [0, -14]
+          html: `<div style="background-color: ${bgColor}; width: 28px; height: 28px; border-radius: 50%; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4); opacity: ${opacity}; display: flex; align-items: center; justify-content: center; position: relative;"><div style="width: 10px; height: 10px; background-color: white; border-radius: 50%;"></div><div style="position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid ${bgColor};"></div></div>`,
+          iconSize: [28, 36],
+          iconAnchor: [14, 36],
+          popupAnchor: [0, -36]
         });
 
-        const statusLabel = isOpen ? `<span style="color: #28a745; font-weight: bold;">🟢 Open Now</span>` : `<span style="color: #e74c3c; font-weight: bold;">🔴 Closed</span>`;
+        const statusLabel = isOpen ? `<span style="color: #10B981; font-weight: 900; font-size: 11px; text-transform: uppercase;">Open Now</span>` : `<span style="color: #EF4444; font-weight: 900; font-size: 11px; text-transform: uppercase;">Closed</span>`;
 
         const marker = L.marker([r.location.latitude, r.location.longitude], { icon: customPinIcon })
           .addTo(this.map)
           .bindPopup(`
-            <div style="font-size:1.1em; font-weight:bold;">${r.name}</div>
-            <div style="margin-bottom: 5px;">${statusLabel}</div>
-            <div style="color: #f39c12; margin-bottom: 5px;">★ ${r.averageRating ? r.averageRating.toFixed(1) : 'No ratings'}</div>
-            <div style="margin-bottom: 5px;">${r.description || 'No description'}</div>
-            <div style="font-size: 0.85em; color: #555; margin-bottom: 8px;"><b>Amenities:</b> ${r.amenities?.join(', ') || 'None'}</div>
-            <div><a href="/restrooms/${r._id}">View Details</a></div>
-          `);
+            <div style="font-family: inherit; font-size:1.15em; font-weight:900; color: #1E3A8A; margin-bottom: 2px;">${r.name}</div>
+            <div style="margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">${statusLabel} <span style="color: #eab308; font-weight: 900; font-size: 11px;">★ ${r.averageRating ? r.averageRating.toFixed(1) : 'No stats'}</span></div>
+            <div style="font-size: 0.85em; color: #64748b; margin-bottom: 12px; font-weight: 600; line-height: 1.4;"><b>Amenities:</b> ${r.amenities?.join(', ') || 'None'}</div>
+            <a href="/restrooms/${r._id}" style="display: block; width: 100%; text-align: center; background: #2563EB; color: white; padding: 8px 0; border-radius: 8px; font-weight: 900; font-size: 13px; text-decoration: none; box-shadow: 0 2px 4px rgba(37,99,235,0.3);">View Detail</a>
+          `, {
+             className: 'custom-popup-theme'
+          });
         
-        // Open popup on hover
         marker.on('mouseover', (e: any) => {
           e.target.openPopup();
         });
@@ -476,19 +568,30 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         this.markersMap.set(r._id!, marker);
       }
     });
+
+    // small style injection for popup
+    if (!document.getElementById('leaflet-popup-custom-css')) {
+      const style = document.createElement('style');
+      style.id = 'leaflet-popup-custom-css';
+      style.innerHTML = `
+        .custom-popup-theme .leaflet-popup-content-wrapper { border-radius: 16px; padding: 4px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+        .custom-popup-theme .leaflet-popup-content { margin: 12px; }
+      `;
+      document.head.appendChild(style);
+    }
   }
 
   private updateUserMarkerAndRadius() {
     if (!this.map || !this.leaflet) return;
     const L = this.leaflet;
     const center = this.userPos || { lat: this.locationService.HAU_COORDS[0], lng: this.locationService.HAU_COORDS[1] };
-    const popupText = this.userPos && this.locationEnabled ? 'You are here' : 'Default Location: Holy Angel University';
+    const popupText = this.userPos && this.locationEnabled ? 'You are here' : 'Default Location';
 
     const userIcon = L.divIcon({
       className: 'user-location-marker',
-      html: `<div style="background-color: #4285F4; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.4);"></div>`,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11]
+      html: `<div style="background-color: #3b82f6; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px rgba(59, 130, 246, 0.6); animation: pulse 2s infinite;"></div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
     });
 
     if (this.userMarker) {
@@ -502,9 +605,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.radiusCircle.setRadius(this.radius);
     } else {
       this.radiusCircle = L.circle(center, {
-        color: '#4285F4',
-        fillColor: '#4285F4',
+        color: '#818CF8', // Indigo light
+        fillColor: '#818CF8',
         fillOpacity: 0.1,
+        weight: 1,
         radius: this.radius
       }).addTo(this.map);
     }

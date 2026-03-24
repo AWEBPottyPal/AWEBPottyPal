@@ -6,6 +6,35 @@ import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
 
+const normalizeAmenity = (amenity) => {
+  const map = {
+    "PWD Friendly": "Accessibility",
+    "Accessible": "Accessibility",
+    "Child-Friendly": "Child Friendly",
+    "Child Friendly Facilities": "Child Friendly",
+  };
+
+  return map[amenity] || amenity;
+};
+
+const normalizeAmenities = (amenities = []) => {
+  const normalized = amenities
+    .filter(Boolean)
+    .map(normalizeAmenity);
+
+  return [...new Set(normalized)];
+};
+
+const normalizeRestroomPayload = (restroom) => {
+  if (!restroom) return restroom;
+
+  const plain = typeof restroom.toObject === "function" ? restroom.toObject() : restroom;
+  return {
+    ...plain,
+    amenities: normalizeAmenities(plain.amenities),
+  };
+};
+
 // @route   POST /api/restrooms
 // @desc    Add a new restroom
 // @access  Private
@@ -18,7 +47,7 @@ router.post("/", protect, async (req, res) => {
       name,
       description,
       location,
-      amenities,
+      amenities: normalizeAmenities(amenities),
       images,
       operatingHours,
       createdBy: req.user._id,
@@ -29,7 +58,7 @@ router.post("/", protect, async (req, res) => {
     });
 
     console.log("[POST /api/restrooms] Restroom created:", restroom._id);
-    res.status(201).json(restroom);
+    res.status(201).json(normalizeRestroomPayload(restroom));
   } catch (error) {
     console.error("[POST /api/restrooms] Error:", error.message);
     res.status(500).json({ message: "Failed to add restroom", error: error.message });
@@ -67,8 +96,10 @@ router.get("/", async (req, res) => {
       { path: "flags", select: "username email" }
     ]);
     
-    console.log(`[GET /api/restrooms] Found ${populatedRestrooms.length} restrooms`);
-    res.json(populatedRestrooms);
+    const normalizedRestrooms = populatedRestrooms.map(normalizeRestroomPayload);
+
+    console.log(`[GET /api/restrooms] Found ${normalizedRestrooms.length} restrooms`);
+    res.json(normalizedRestrooms);
   } catch (error) {
     console.error("[GET /api/restrooms] Error:", error.message);
     res.status(500).json({ message: "Failed to fetch restrooms", error: error.message });
@@ -104,7 +135,7 @@ router.get("/user/:userId", protect, async (req, res) => {
       .populate('flags', 'username email');
     console.log('   [OK] Found', restrooms.length, 'restrooms');
     console.log('[GET /api/restrooms/user/:userId] ===== REQUEST END =====\n');
-    res.json(restrooms);
+    res.json(restrooms.map(normalizeRestroomPayload));
   } catch (error) {
     console.error('[GET /api/restrooms/user/:userId] ===== ERROR =====');
     console.error('   Message:', error.message);
@@ -124,7 +155,7 @@ router.get("/:id", async (req, res) => {
       .populate("createdBy", "username email")
       .populate("flags", "username email");
     if (!restroom) return res.status(404).json({ message: "Restroom not found" });
-    res.json(restroom);
+    res.json(normalizeRestroomPayload(restroom));
   } catch (error) {
     console.error("[GET /api/restrooms/:id] Error:", error.message);
     res.status(500).json({ message: "Failed to fetch restroom", error: error.message });
@@ -147,13 +178,18 @@ router.put("/:id", protect, async (req, res) => {
       return res.status(403).json({ message: "Not authorized to update this restroom" });
     }
 
-    const updated = await Restroom.findByIdAndUpdate(req.params.id, req.body, {
+    const payload = {
+      ...req.body,
+      amenities: normalizeAmenities(req.body.amenities),
+    };
+
+    const updated = await Restroom.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
     });
 
     console.log("[PUT /api/restrooms/:id] Restroom updated:", req.params.id);
-    res.json(updated);
+    res.json(normalizeRestroomPayload(updated));
   } catch (error) {
     console.error("[PUT /api/restrooms/:id] Error:", error.message);
     res.status(500).json({ message: "Failed to update restroom", error: error.message });

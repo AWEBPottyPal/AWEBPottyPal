@@ -107,6 +107,11 @@ export class ApiService {
     return this.http.get(`${BASE_URL}/restrooms/user/${userId}`, { headers: this.authHeaders() });
   }
 
+  // ─── Navigation ─────────────────────────────────────────────────────────────
+  getDirections(start: { latitude: number; longitude: number }, end: { latitude: number; longitude: number }, profile: string = 'driving-car'): Observable<any> {
+    return this.http.post(`${BASE_URL}/navigation/directions`, { start, end, profile });
+  }
+
   // ─── Admin Routes ─────────────────────────────────────────────────────────────
   // Get all flagged restrooms (admin only)
   getAdminFlaggedRestrooms(sortBy: string = 'flags', order: string = 'desc'): Observable<any> {
@@ -124,14 +129,5 @@ export class ApiService {
   // Admin delete a restroom (bypasses ownership check)
   adminDeleteRestroom(id: string): Observable<any> {
     return this.http.delete(`${BASE_URL}/admin/restrooms/${id}`, { headers: this.authHeaders() });
-  }
-
-  // ─── Navigation ─────────────────────────────────────────────────────────────
-  getDirections(
-    start: { latitude: number; longitude: number }, 
-    end: { latitude: number; longitude: number },
-    profile: 'driving-car' | 'foot-walking' = 'driving-car'
-  ): Observable<any> {
-    return this.http.post(`${BASE_URL}/navigation/directions`, { start, end, profile });
   }
 }
